@@ -1,7 +1,7 @@
 # AT-to-XT Keyboard Protocol Converter
 This repository provides the source, schematics, and Gerber files that converts
 the AT-keyboard protocol to the XT keyboard protocol. As XT keyboards are 
-expensive (seriously, type in "PC XT keyboard" or "PC 5150 keyboard" in Ebay, 
+expensive (seriously, type in "PC XT keyboard" or "PC 5150 keyboard" in Ebay), 
 this provides a cheaper alternative for someone willing to wait for PCB and 
 parts. This circuit supports 101-key extended keyboards using the XT protocol, 
 but older pre-386 systems may not know how to handle extended keys. The 
