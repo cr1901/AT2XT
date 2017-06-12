@@ -1,0 +1,14 @@
+[package]
+build = "build.rs"
+name = "at2xt"
+version = "0.1.0"
+authors = ["William D. Jones <thor0505@comcast.net>"]
+
+[dependencies]
+volatile-register = "0.1.2"
+
+[profile.dev]
+debug = true
+
+[profile.release]
+lto = true
