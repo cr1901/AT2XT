@@ -17,6 +17,9 @@ use keymap::to_xt;
 mod keybuffer;
 use keybuffer::KeycodeBuffer;
 
+mod driver;
+use driver::KeyboardPins;
+
 
 global_asm!(r#"
     .globl reset_handler
@@ -51,36 +54,25 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
 
 extern "C" {
     static mut WDTCTL: RW<u16>;
-    static P1IN: RO<u8>;
+    /* static P1IN: RO<u8>;
     static mut P1IE: RW<u8>;
     static mut P1IES: RW<u8>;
     static mut P1IFG: RW<u8>;
     static mut P1DIR: RW<u8>;
-    static mut P1OUT: RW<u8>;
+    static mut P1OUT: RW<u8>; */
 }
 
 static mut IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
-
-// AT Keyboard to micro
-const PORT1_DATA: u8 = 0b0001_0000;
-const PORT1_CLK: u8 = 0b0000_0001;
-
-// Sample clock from host- host can pull it low
-const CAPTURE_P2CLK: u8 = 0b0000_0010;
-
-// Micro to host
-const PORT2_DATA: u8 = 0b0000_1000;
-const PORT2_DATA_PIN: u8 = 3;
-const PORT2_CLK: u8 = 0b0000_0100;
-
+static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 
 #[no_mangle]
 pub unsafe extern "C" fn main() -> ! {
-    WDTCTL.write(0x5A00 + 0x80); // WDTPW + WDTHOLD
-    P1DIR.write(0x00); // Sense lines as input for now. P1.0 is output to keyboard. P1.1 is input from keyboard.
+    //WDTCTL.write(0x5A00 + 0x80); // WDTPW + WDTHOLD
+    //P1DIR.write(0x00); // Sense lines as input for now. P1.0 is output to keyboard. P1.1 is input from keyboard.
     //P1IFG.modify(|x| x & !PORT1_CLK);
     //P1IES.modify(|x| x | PORT1_CLK);
     //P1IE.modify(|x| x | PORT1_CLK);
+    KEYBOARD_PINS.idle();
 
     'get_command: loop {
         // P1OUT.modify(|x| !x);
@@ -100,11 +92,15 @@ pub unsafe extern "C" fn main() -> ! {
 }
 
 pub unsafe fn send_xt_bit(bit : u8) -> () {
-    P1OUT.modify(|x| x & !PORT2_DATA);
-    P1OUT.modify(|x| x | (bit << PORT2_DATA_PIN));
-    P1OUT.modify(|x| x & !PORT2_CLK);
+    if bit == 1{
+        KEYBOARD_PINS.xt_data.set();
+    } else {
+        KEYBOARD_PINS.xt_data.unset();
+    }
+
+    KEYBOARD_PINS.xt_clk.unset();
     // PAUSE
-    P1OUT.modify(|x| x | PORT2_CLK);
+    KEYBOARD_PINS.xt_clk.set();
 }
 
 pub fn send_byte_to_pc(mut byte : u8) -> () {
@@ -112,12 +108,11 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
         // The host cannot send data; the only communication it can do with the micro is pull
         // the CLK (reset) and DATA (shift register full) low.
         // Wait for the host to release the lines.
-        while ((P1IN.read() & PORT2_CLK) == 0) || ((P1IN.read() & PORT2_DATA) == 0) {
+        while KEYBOARD_PINS.xt_clk.is_unset() || KEYBOARD_PINS.xt_data.is_unset() {
 
         }
 
-        P1OUT.modify(|x| x | (PORT2_CLK + PORT2_DATA));
-        P1DIR.modify(|x| x | (PORT2_CLK + PORT2_DATA));
+        KEYBOARD_PINS.xt_out();
         send_xt_bit(0);
         send_xt_bit(1);
     }
@@ -132,8 +127,7 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
     }
 
     unsafe {
-        P1OUT.modify(|x| x | PORT2_DATA);
-        P1DIR.modify(|x| x & !(PORT2_CLK + PORT2_DATA));
+        KEYBOARD_PINS.xt_in();
     }
 }
 
