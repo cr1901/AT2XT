@@ -20,6 +20,9 @@ use keybuffer::KeycodeBuffer;
 mod driver;
 use driver::KeyboardPins;
 
+mod interrupt;
+use interrupt::*;
+
 
 global_asm!(r#"
     .globl reset_handler
@@ -54,12 +57,8 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
 
 extern "C" {
     static mut WDTCTL: RW<u16>;
-    /* static P1IN: RO<u8>;
-    static mut P1IE: RW<u8>;
-    static mut P1IES: RW<u8>;
-    static mut P1IFG: RW<u8>;
-    static mut P1DIR: RW<u8>;
-    static mut P1OUT: RW<u8>; */
+    static mut BCSCTL1: RW<u8>;
+    static mut BCSCTL2: RW<u8>;
 }
 
 static mut IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
@@ -67,12 +66,8 @@ static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 
 #[no_mangle]
 pub unsafe extern "C" fn main() -> ! {
-    //WDTCTL.write(0x5A00 + 0x80); // WDTPW + WDTHOLD
-    //P1DIR.write(0x00); // Sense lines as input for now. P1.0 is output to keyboard. P1.1 is input from keyboard.
-    //P1IFG.modify(|x| x & !PORT1_CLK);
-    //P1IES.modify(|x| x | PORT1_CLK);
-    //P1IE.modify(|x| x | PORT1_CLK);
-    KEYBOARD_PINS.idle();
+    WDTCTL.write(0x5A00 + 0x80); // WDTPW + WDTHOLD
+    KEYBOARD_PINS.idle(); // FIXME: Can we make this part of new()?
 
     'get_command: loop {
         // P1OUT.modify(|x| !x);
@@ -92,7 +87,7 @@ pub unsafe extern "C" fn main() -> ! {
 }
 
 pub unsafe fn send_xt_bit(bit : u8) -> () {
-    if bit == 1{
+    if bit == 1 {
         KEYBOARD_PINS.xt_data.set();
     } else {
         KEYBOARD_PINS.xt_data.unset();

@@ -2,7 +2,6 @@ use volatile_register::RW;
 use volatile_register::RO;
 
 extern "C" {
-    static mut WDTCTL: RW<u16>;
     static P1IN: RO<u8>;
     static mut P1IE: RW<u8>;
     static mut P1IES: RW<u8>;
@@ -16,7 +15,8 @@ pub struct KeyboardPins {
     pub at_data : Pin,
     pub xt_clk : Pin,
     pub xt_data : Pin,
-    pub xt_sense : Pin
+    pub xt_sense : Pin,
+    // was_initialized : bool
 }
 
 impl KeyboardPins {
@@ -32,10 +32,18 @@ impl KeyboardPins {
         }
     }
 
+    // Not safe in the general case, but in my code base, I only call this once during
+    // initialization before the only interrupts that touches these registers is enabled.
+    // Option 1: Possible to make fully safe using was_initialized?
+    // Pitfall 1: Does globally enable
     pub unsafe fn idle(&self)  -> () {
         P1DIR.write(0x00);
+        P1IFG.modify(|x| x & !self.at_clk.bitmask());
+        P1IES.modify(|x| x | self.at_clk.bitmask());
+        P1IE.modify(|x| x | self.at_clk.bitmask());
     }
 
+    // Why in japaric's closures access to the pins for an actual write aren't wrapped in unsafe?
     pub unsafe fn xt_out(&self) -> () {
         let xt_mask : u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
         P1OUT.modify(|x| x | xt_mask);
