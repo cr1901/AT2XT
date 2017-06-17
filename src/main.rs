@@ -23,6 +23,8 @@ use driver::KeyboardPins;
 mod interrupt;
 use interrupt::*;
 
+mod util;
+
 
 global_asm!(r#"
     .globl reset_handler
