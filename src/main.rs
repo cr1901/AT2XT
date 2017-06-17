@@ -59,6 +59,9 @@ extern "C" {
     static mut WDTCTL: RW<u16>;
     static mut BCSCTL1: RW<u8>;
     static mut BCSCTL2: RW<u8>;
+    // TACCR0
+    // TACTL
+    // TACCTL0
 }
 
 static mut IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
@@ -68,6 +71,11 @@ static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 pub unsafe extern "C" fn main() -> ! {
     WDTCTL.write(0x5A00 + 0x80); // WDTPW + WDTHOLD
     KEYBOARD_PINS.idle(); // FIXME: Can we make this part of new()?
+
+    BCSCTL1.write(0x88); // XT2 off, Range Select 7.
+    BCSCTL2.write(0x04); // Divide submain clock by 4.
+
+
 
     'get_command: loop {
         // P1OUT.modify(|x| !x);
@@ -80,8 +88,11 @@ pub unsafe extern "C" fn main() -> ! {
         // the micro will only respond to host PC acknowledge requests if its idle.
         'idle: while IN_BUFFER.is_empty() {
 
-            // if host computer wants to reset
-            continue 'get_command;
+            // If host computer wants to reset
+            if KEYBOARD_PINS.xt_sense.is_unset() {
+                send_byte_to_pc(0xAA);
+                continue 'get_command;
+            }
         }
     }
 }
@@ -94,6 +105,7 @@ pub unsafe fn send_xt_bit(bit : u8) -> () {
     }
 
     KEYBOARD_PINS.xt_clk.unset();
+    delay(88); // 55 microseconds at 1.6 MHz
     // PAUSE
     KEYBOARD_PINS.xt_clk.set();
 }
