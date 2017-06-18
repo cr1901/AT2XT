@@ -15,7 +15,7 @@ mod keymap;
 use keymap::to_xt;
 
 mod keybuffer;
-use keybuffer::KeycodeBuffer;
+use keybuffer::{KeycodeBuffer, KeyIn};
 
 mod driver;
 use driver::KeyboardPins;
@@ -67,6 +67,7 @@ extern "C" {
 }
 
 static mut IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
+static mut KEY_IN : KeyIn = KeyIn::new();
 static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 
 #[no_mangle]
