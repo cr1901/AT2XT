@@ -49,6 +49,28 @@ impl KeyboardPins {
         })
     }
 
+    pub fn at_idle(&self) -> () {
+        let at_mask : u8 = self.at_clk.bitmask() | self.at_data.bitmask();
+        self.at_clk.set();
+        self.at_data.set();
+        critical_section(| | {
+            unsafe {
+                P1DIR.modify(|x| x & !at_mask);
+            }
+        })
+    }
+
+    pub fn at_inhibit(&self) -> () {
+        let at_mask : u8 = self.at_clk.bitmask() | self.at_data.bitmask();
+        self.at_clk.unset();
+        self.at_data.set();
+        critical_section(| | {
+            unsafe {
+                P1DIR.modify(|x| x | at_mask);
+            }
+        })
+    }
+
     // Why in japaric's closures access to the pins for an actual write aren't wrapped in unsafe?
     pub fn xt_out(&self) -> () {
         let xt_mask : u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();

@@ -54,7 +54,26 @@ unsafe extern "msp430-interrupt" fn timer0_handler() {
 static PORTA_VECTOR: unsafe extern "msp430-interrupt" fn() = porta_handler;
 
 unsafe extern "msp430-interrupt" fn porta_handler() {
-    // you can do something here
+    // if acting_as_host() {
+
+    // } else {
+    let full : bool;
+
+    // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
+    // sync for nested interrupts while not giving up safety?
+    // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
+    unsafe {
+        KEY_IN.shift_in(KEYBOARD_PINS.at_data.is_set());
+        full = KEY_IN.is_full();
+    }
+
+    if full {
+
+    }
+
+
+    // }
+
 }
 
 extern "C" {
