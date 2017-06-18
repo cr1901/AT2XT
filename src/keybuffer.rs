@@ -64,7 +64,13 @@ impl KeyIn {
         self.pos < 11
     }
 
+    pub fn clear(&mut self) {
+        self.pos = 0;
+        self.contents = 0;
+    }
+
     pub fn shift_in(&mut self, bit : bool) -> () {
+        // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         let cast_bit : u16 = if bit {
                 1
             } else {

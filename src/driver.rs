@@ -49,6 +49,14 @@ impl KeyboardPins {
         })
     }
 
+    pub fn clear_at_clk_int(&self) -> () {
+        critical_section(| | {
+            unsafe {
+                P1IFG.modify(|x| x & !self.at_clk.bitmask());
+            }
+        })
+    }
+
     pub fn at_idle(&self) -> () {
         let at_mask : u8 = self.at_clk.bitmask() | self.at_data.bitmask();
         self.at_clk.set();

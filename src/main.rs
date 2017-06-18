@@ -68,12 +68,28 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
     }
 
     if full {
+        KEYBOARD_PINS.at_inhibit(); // Ask keyboard to not send anything while processing keycode.
 
+        unsafe {
+            let mut key : u16 = 0;
+            match KEY_IN.take() {
+                Some(k) => {key = k},
+                None => {}, // unreachable
+            }
+
+            IN_BUFFER.put(key);
+
+            KEY_IN.clear();
+        }
+        KEYBOARD_PINS.at_idle();
     }
+
+
 
 
     // }
 
+    KEYBOARD_PINS.clear_at_clk_int();
 }
 
 extern "C" {
