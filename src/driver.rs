@@ -1,6 +1,8 @@
 use volatile_register::RW;
 use volatile_register::RO;
 
+use ::interrupt::critical_section;
+
 extern "C" {
     static P1IN: RO<u8>;
     static mut P1IE: RW<u8>;
@@ -36,24 +38,36 @@ impl KeyboardPins {
     // initialization before the only interrupts that touches these registers is enabled.
     // Option 1: Possible to make fully safe using was_initialized?
     // Pitfall 1: Does globally enable
-    pub unsafe fn idle(&self)  -> () {
-        P1DIR.write(0x00);
-        P1IFG.modify(|x| x & !self.at_clk.bitmask());
-        P1IES.modify(|x| x | self.at_clk.bitmask());
-        P1IE.modify(|x| x | self.at_clk.bitmask());
+    pub fn idle(&self)  -> () {
+        critical_section(| | {
+            unsafe {
+                P1DIR.write(0x00);
+                P1IFG.modify(|x| x & !self.at_clk.bitmask());
+                P1IES.modify(|x| x | self.at_clk.bitmask());
+                P1IE.modify(|x| x | self.at_clk.bitmask());
+            }
+        })
     }
 
     // Why in japaric's closures access to the pins for an actual write aren't wrapped in unsafe?
-    pub unsafe fn xt_out(&self) -> () {
+    pub fn xt_out(&self) -> () {
         let xt_mask : u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
-        P1OUT.modify(|x| x | xt_mask);
-        P1DIR.modify(|x| x | xt_mask);
+        critical_section(| | {
+            unsafe {
+                P1OUT.modify(|x| x | xt_mask);
+                P1DIR.modify(|x| x | xt_mask);
+            }
+        })
     }
 
-    pub unsafe fn xt_in(&self) -> () {
+    pub fn xt_in(&self) -> () {
         let xt_mask : u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
-        P1OUT.modify(|x| x | self.xt_data.bitmask());
-        P1DIR.modify(|x| x & !xt_mask);
+        critical_section(| | {
+            unsafe {
+                P1OUT.modify(|x| x | self.xt_data.bitmask());
+                P1DIR.modify(|x| x & !xt_mask)
+            }
+        })
     }
 }
 
@@ -72,21 +86,29 @@ impl Pin {
     }
 
     // unsafe b/c P1OUT can be modified from another thread w/o synchronization.
-    pub unsafe fn set(&self) -> () {
-        P1OUT.modify(|x| x | self.bitmask());
+    pub fn set(&self) -> () {
+        critical_section(| | {
+            unsafe { P1OUT.modify(|x| x | self.bitmask()) }
+        })
     }
 
     // unsafe b/c P1OUT can be modified from another thread w/o synchronization.
-    pub unsafe fn unset(&self) -> () {
-        P1OUT.modify(|x| x & !self.bitmask());
+    pub fn unset(&self) -> () {
+        critical_section(| | {
+            unsafe { P1OUT.modify(|x| x & !self.bitmask()); }
+        })
     }
 
-    pub unsafe fn mk_in(&self) -> () {
-        P1DIR.modify(|x| x & !self.bitmask());
+    pub fn mk_in(&self) -> () {
+        critical_section(| | {
+            unsafe { P1DIR.modify(|x| x & !self.bitmask()); }
+        })
     }
 
-    pub unsafe fn mk_out(&self) -> () {
-        P1DIR.modify(|x| x | self.bitmask());
+    pub fn mk_out(&self) -> () {
+        critical_section(| | {
+            unsafe { P1DIR.modify(|x| x | self.bitmask()); }
+        })
     }
 
 
