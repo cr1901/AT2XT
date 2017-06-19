@@ -28,8 +28,7 @@ impl KeycodeBuffer {
         // TODO: A full buffer is an abnormal condition worth a panic/reset.
 
         critical_section(| | {
-            let ptr = &mut self.contents[0] as * mut u16; // Why does this work?
-            unsafe { *(ptr.offset(self.tail as isize)) = in_key; } // self.contents[self.tail as usize] = in_key; brings in too much code.
+            self.contents[self.tail as usize] = in_key;
             self.tail = (self.tail + 1) % 16;
         });
     }
@@ -40,8 +39,7 @@ impl KeycodeBuffer {
         } else {
             let mut out_key : u16 = 0;
             critical_section(| | {
-                let ptr = &self.contents[0] as * const u16;
-                out_key = unsafe { *(ptr.offset(self.head as isize)) }; // let out_key = self.contents[self.head as usize]; brings in too much code.
+                out_key = self.contents[self.head as usize];
                 self.head = (self.head + 1) % 16;
             });
             Some(out_key)
