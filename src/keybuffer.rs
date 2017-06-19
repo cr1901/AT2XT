@@ -1,3 +1,5 @@
+use interrupt::critical_section;
+
 pub struct KeycodeBuffer {
     head : u8,
     tail : u8,
@@ -25,22 +27,23 @@ impl KeycodeBuffer {
     pub fn put(&mut self, in_key : u16) -> () {
         // TODO: A full buffer is an abnormal condition worth a panic/reset.
 
-        // Critical Section
-        let ptr = &mut self.contents[0] as * mut u16; // Why does this work?
-        unsafe { *(ptr.offset(self.tail as isize)) = in_key; } // self.contents[self.tail as usize] = in_key; brings in too much code.
-        self.tail = (self.tail + 1) % 16;
-        // End critical section
+        critical_section(| | {
+            let ptr = &mut self.contents[0] as * mut u16; // Why does this work?
+            unsafe { *(ptr.offset(self.tail as isize)) = in_key; } // self.contents[self.tail as usize] = in_key; brings in too much code.
+            self.tail = (self.tail + 1) % 16;
+        });
     }
 
     pub fn take(&mut self) -> Option<u16> {
         if self.is_empty() {
             None
         } else {
-            // Critical Section
-            let ptr = &self.contents[0] as * const u16;
-            let out_key = unsafe { *(ptr.offset(self.head as isize)) }; // let out_key = self.contents[self.head as usize]; brings in too much code.
-            self.head = (self.head + 1) % 16;
-            // End critical section
+            let mut out_key : u16 = 0;
+            critical_section(| | {
+                let ptr = &self.contents[0] as * const u16;
+                out_key = unsafe { *(ptr.offset(self.head as isize)) }; // let out_key = self.contents[self.head as usize]; brings in too much code.
+                self.head = (self.head + 1) % 16;
+            });
             Some(out_key)
         }
     }
@@ -78,20 +81,20 @@ impl KeyIn {
             } else {
                 0
             };
-        // Critical Section
-        self.contents = (self.contents << 1) & cast_bit;
-        self.pos = self.pos + 1;
-        // End critical section
+        critical_section(| | {
+            self.contents = (self.contents << 1) & cast_bit;
+            self.pos = self.pos + 1;
+        })
     }
 
     pub fn take(&mut self) -> Option<u16> {
         if !self.is_full() {
             None
         } else {
-            // Critical Section
-            self.pos = 0;
+            critical_section(| | {
+                self.pos = 0;
+            });
             Some(self.contents)
-            // End critical section
         }
     }
 }
