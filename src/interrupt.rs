@@ -4,13 +4,16 @@
 // Unsafe because it can be used to reenable interrupts anywhere, including regions where it
 // is assumed interrupts cannot occur.
 pub unsafe fn enable() {
-    asm!("bis #8, sr" : : : "sr" :);
+    asm!(r#"nop
+            bis #8, sr
+            nop"# : : : "sr" : "volatile");
 }
 
 #[inline(always)]
 pub fn disable() {
     unsafe {
-        asm!("bic #8, sr" : : : "sr" :);
+        asm!(r#"bic #8, sr
+                nop"# : : : "sr" : "volatile");
     }
 }
 
