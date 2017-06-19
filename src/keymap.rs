@@ -14,5 +14,10 @@ static KEYCODE_LUT : [u8; 132] =
 
 #[inline(always)]
 pub fn to_xt(at_in : u8) -> u8 {
-    KEYCODE_LUT[at_in as usize]
+    let ptr = &KEYCODE_LUT[0] as * const u8;
+    if at_in < 132 {
+        unsafe { *ptr.offset(at_in as isize) }
+    } else {
+        0
+    }
 }

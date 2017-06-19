@@ -71,22 +71,17 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
         KEYBOARD_PINS.at_inhibit(); // Ask keyboard to not send anything while processing keycode.
 
         unsafe {
-            let mut key : u16 = 0;
-            match KEY_IN.take() {
-                Some(k) => {key = k},
-                None => {}, // unreachable
-            }
+            let mut key : u16 = match KEY_IN.take() {
+                Some(k) => k,
+                None => 0, // unreachable
+            }; // unwrap doesn't work here... rust_begin_unwind can't be removed.
 
             IN_BUFFER.put(key);
-
             KEY_IN.clear();
         }
+
         KEYBOARD_PINS.at_idle();
     }
-
-
-
-
     // }
 
     KEYBOARD_PINS.clear_at_clk_int();
@@ -138,6 +133,8 @@ pub extern "C" fn main() -> ! {
                     continue 'get_command;
                 }
             }
+
+            send_byte_to_pc(to_xt(IN_BUFFER.take().unwrap() as u8));
         }
     }
 }
