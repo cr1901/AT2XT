@@ -26,7 +26,8 @@ impl KeycodeBuffer {
         // TODO: A full buffer is an abnormal condition worth a panic/reset.
 
         // Critical Section
-        self.contents[self.tail as usize] = in_key;
+        let ptr = &mut self.contents[0] as * mut u16; // Why does this work?
+        unsafe { *(ptr.offset(self.tail as isize)) = in_key; } // self.contents[self.tail as usize] = in_key; brings in too much code.
         self.tail = (self.tail + 1) % 16;
         // End critical section
     }
@@ -36,7 +37,8 @@ impl KeycodeBuffer {
             None
         } else {
             // Critical Section
-            let out_key = self.contents[self.head as usize];
+            let ptr = &self.contents[0] as * const u16;
+            let out_key = unsafe { *(ptr.offset(self.head as isize)) }; // let out_key = self.contents[self.head as usize]; brings in too much code.
             self.head = (self.head + 1) % 16;
             // End critical section
             Some(out_key)
@@ -93,3 +95,14 @@ impl KeyIn {
         }
     }
 }
+
+// https://doc.rust-lang.org/src/core/panicking.rs.html#54-58
+// panic_fmt is used from core::panicking even though I declared my own, and additionally
+// the number of args don't match! Why?
+// I can't prevent bringing in core::fmt::Display with bounds checking, so I'll have to
+// do it manually.
+/* #[used]
+#[lang = "panic_bounds_check"]
+extern "C" fn panic_bounds_check() -> ! {
+    loop {}
+} */
