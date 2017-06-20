@@ -12,7 +12,6 @@ use volatile_register::RW;
 use volatile_register::RO;
 
 mod keymap;
-use keymap::to_xt;
 
 mod keybuffer;
 use keybuffer::{KeycodeBuffer, KeyIn};
@@ -21,7 +20,7 @@ mod driver;
 use driver::KeyboardPins;
 
 mod interrupt;
-use interrupt::*;
+use interrupt::critical_section;
 
 mod util;
 
@@ -58,7 +57,7 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
 
     // } else {
     // Interrupts already disabled, and doesn't make sense to nest them, since bits need
-    // to be received in order.
+    // to be received in order. Just wrap whole block.
     critical_section(|cs| {
         let full : bool;
 
@@ -117,7 +116,6 @@ pub extern "C" fn main() -> ! {
 
     'get_command: loop {
         // P1OUT.modify(|x| !x);
-        // delay(40000);
 
         // Run state machine/send reply. Receive new cmd.
 
@@ -135,11 +133,15 @@ pub extern "C" fn main() -> ! {
                 }
             }
 
-            let in_key = critical_section(|cs|{
+            let mut bits_in = critical_section(|cs|{
                 IN_BUFFER.take(&cs).unwrap()
             });
 
-            send_byte_to_pc(to_xt(in_key as u8));
+            bits_in = bits_in & !(0x4000 + 0x0001); // Mask out start/stop bit.
+            bits_in = bits_in >> 2; // Remove stop bit and parity bit (FIXME: Check parity).
+            let at_keycode : u8 = util::reverse_bits(bits_in as u8);
+
+            send_byte_to_pc(keymap::to_xt(at_keycode));
         }
     }
 }
