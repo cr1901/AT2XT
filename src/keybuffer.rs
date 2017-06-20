@@ -1,4 +1,4 @@
-use interrupt::critical_section;
+use interrupt::CriticalSectionToken;
 
 pub struct KeycodeBuffer {
     head : u8,
@@ -24,24 +24,19 @@ impl KeycodeBuffer {
         (self.head - self.tail == 0)
     }
 
-    pub fn put(&mut self, in_key : u16) -> () {
+    pub fn put(&mut self, in_key : u16, ctx : &CriticalSectionToken) -> () {
         // TODO: A full buffer is an abnormal condition worth a panic/reset.
 
-        critical_section(| | {
-            self.contents[self.tail as usize] = in_key;
-            self.tail = (self.tail + 1) % 16;
-        });
+        self.contents[self.tail as usize] = in_key;
+        self.tail = (self.tail + 1) % 16;
     }
 
-    pub fn take(&mut self) -> Option<u16> {
+    pub fn take(&mut self, ctx : &CriticalSectionToken) -> Option<u16> {
         if self.is_empty() {
             None
         } else {
-            let mut out_key : u16 = 0;
-            critical_section(| | {
-                out_key = self.contents[self.head as usize];
-                self.head = (self.head + 1) % 16;
-            });
+            let out_key : u16 = self.contents[self.head as usize];
+            self.head = (self.head + 1) % 16;
             Some(out_key)
         }
     }
@@ -67,31 +62,27 @@ impl KeyIn {
         self.pos < 11
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, ctx : &CriticalSectionToken) {
         self.pos = 0;
         self.contents = 0;
     }
 
-    pub fn shift_in(&mut self, bit : bool) -> () {
+    pub fn shift_in(&mut self, bit : bool, ctx : &CriticalSectionToken) -> () {
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         let cast_bit : u16 = if bit {
                 1
             } else {
                 0
             };
-        critical_section(| | {
-            self.contents = (self.contents << 1) & cast_bit;
-            self.pos = self.pos + 1;
-        })
+        self.contents = (self.contents << 1) & cast_bit;
+        self.pos = self.pos + 1;
     }
 
-    pub fn take(&mut self) -> Option<u16> {
+    pub fn take(&mut self, ctx : &CriticalSectionToken) -> Option<u16> {
         if !self.is_full() {
             None
         } else {
-            critical_section(| | {
-                self.pos = 0;
-            });
+            self.pos = 0;
             Some(self.contents)
         }
     }

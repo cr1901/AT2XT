@@ -57,29 +57,33 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
     // if acting_as_host() {
 
     // } else {
-    let full : bool;
+    // Interrupts already disabled, and doesn't make sense to nest them, since bits need
+    // to be received in order.
+    critical_section(|cs| {
+        let full : bool;
 
-    // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
-    // sync for nested interrupts while not giving up safety?
-    // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-    unsafe {
-        KEY_IN.shift_in(KEYBOARD_PINS.at_data.is_set());
-        full = KEY_IN.is_full();
-    }
-
-    if full {
-        KEYBOARD_PINS.at_inhibit(); // Ask keyboard to not send anything while processing keycode.
-
+        // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
+        // sync for nested interrupts while not giving up safety?
+        // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
         unsafe {
-            IN_BUFFER.put(KEY_IN.take().unwrap());
-            KEY_IN.clear();
+            KEY_IN.shift_in(KEYBOARD_PINS.at_data.is_set(), &cs);
+            full = KEY_IN.is_full();
         }
 
-        KEYBOARD_PINS.at_idle();
-    }
-    // }
+        if full {
+            KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
 
-    KEYBOARD_PINS.clear_at_clk_int();
+            unsafe {
+                IN_BUFFER.put(KEY_IN.take(&cs).unwrap(), &cs);
+                KEY_IN.clear(&cs);
+            }
+
+            KEYBOARD_PINS.at_idle(&cs);
+        }
+        // }
+
+        KEYBOARD_PINS.clear_at_clk_int(&cs);
+    });
 }
 
 extern "C" {
@@ -101,7 +105,9 @@ pub extern "C" fn main() -> ! {
         WDTCTL.write(0x5A00 + 0x80); // WDTPW + WDTHOLD
     }
 
-    KEYBOARD_PINS.idle(); // FIXME: Can we make this part of new()?
+    critical_section(|cs| {
+        KEYBOARD_PINS.idle(&cs); // FIXME: Can we make this part of new()?
+    });
 
     unsafe {
         BCSCTL1.write(0x88); // XT2 off, Range Select 7.
@@ -129,33 +135,46 @@ pub extern "C" fn main() -> ! {
                 }
             }
 
-            send_byte_to_pc(to_xt(IN_BUFFER.take().unwrap() as u8));
+            let in_key = critical_section(|cs|{
+                IN_BUFFER.take(&cs).unwrap()
+            });
+
+            send_byte_to_pc(to_xt(in_key as u8));
         }
     }
 }
 
 pub fn send_xt_bit(bit : u8) -> () {
-    if bit == 1 {
-        KEYBOARD_PINS.xt_data.set();
-    } else {
-        KEYBOARD_PINS.xt_data.unset();
-    }
+    critical_section(|cs| {
+        if bit == 1 {
+            KEYBOARD_PINS.xt_data.set(&cs);
+        } else {
+            KEYBOARD_PINS.xt_data.unset(&cs);
+        }
 
-    KEYBOARD_PINS.xt_clk.unset();
+        KEYBOARD_PINS.xt_clk.unset(&cs);
+    });
+
     unsafe { delay(88); } // 55 microseconds at 1.6 MHz
-    // PAUSE
-    KEYBOARD_PINS.xt_clk.set();
+
+    critical_section(|cs| {
+        KEYBOARD_PINS.xt_clk.set(&cs);
+    });
 }
 
 pub fn send_byte_to_pc(mut byte : u8) -> () {
     // The host cannot send data; the only communication it can do with the micro is pull
     // the CLK (reset) and DATA (shift register full) low.
     // Wait for the host to release the lines.
+
     while KEYBOARD_PINS.xt_clk.is_unset() || KEYBOARD_PINS.xt_data.is_unset() {
 
     }
 
-    KEYBOARD_PINS.xt_out();
+    critical_section(|cs| {
+        KEYBOARD_PINS.xt_out(&cs);
+    });
+
     send_xt_bit(0);
     send_xt_bit(1);
 
@@ -164,7 +183,9 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
 		byte = byte >> 1;
     }
 
-    KEYBOARD_PINS.xt_in();
+    critical_section(|cs| {
+        KEYBOARD_PINS.xt_in(&cs);
+    });
 }
 
 

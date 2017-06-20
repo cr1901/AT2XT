@@ -1,6 +1,7 @@
 use volatile_register::RW;
 use volatile_register::RO;
 
+use ::interrupt::CriticalSectionToken;
 use ::interrupt::critical_section;
 
 extern "C" {
@@ -38,66 +39,54 @@ impl KeyboardPins {
     // initialization before the only interrupts that touches these registers is enabled.
     // Option 1: Possible to make fully safe using was_initialized?
     // Pitfall 1: Does globally enable
-    pub fn idle(&self)  -> () {
-        critical_section(| | {
-            unsafe {
-                P1DIR.write(0x00);
-                P1IFG.modify(|x| x & !self.at_clk.bitmask());
-                P1IES.modify(|x| x | self.at_clk.bitmask());
-                P1IE.modify(|x| x | self.at_clk.bitmask());
-            }
-        })
+    pub fn idle(&self, ctx : &CriticalSectionToken)  -> () {
+        unsafe {
+            P1DIR.write(0x00);
+            P1IFG.modify(|x| x & !self.at_clk.bitmask());
+            P1IES.modify(|x| x | self.at_clk.bitmask());
+            P1IE.modify(|x| x | self.at_clk.bitmask());
+        }
     }
 
-    pub fn clear_at_clk_int(&self) -> () {
-        critical_section(| | {
-            unsafe {
-                P1IFG.modify(|x| x & !self.at_clk.bitmask());
-            }
-        })
+    pub fn clear_at_clk_int(&self, ctx : &CriticalSectionToken) -> () {
+        unsafe {
+            P1IFG.modify(|x| x & !self.at_clk.bitmask());
+        }
     }
 
-    pub fn at_idle(&self) -> () {
+    pub fn at_idle(&self, ctx : &CriticalSectionToken) -> () {
         let at_mask : u8 = self.at_clk.bitmask() | self.at_data.bitmask();
-        self.at_clk.set();
-        self.at_data.set();
-        critical_section(| | {
-            unsafe {
-                P1DIR.modify(|x| x & !at_mask);
-            }
-        })
+        self.at_clk.set(ctx);
+        self.at_data.set(ctx);
+        unsafe {
+            P1DIR.modify(|x| x & !at_mask);
+        }
     }
 
-    pub fn at_inhibit(&self) -> () {
+    pub fn at_inhibit(&self, ctx : &CriticalSectionToken) -> () {
         let at_mask : u8 = self.at_clk.bitmask() | self.at_data.bitmask();
-        self.at_clk.unset();
-        self.at_data.set();
-        critical_section(| | {
-            unsafe {
-                P1DIR.modify(|x| x | at_mask);
-            }
-        })
+        self.at_clk.unset(ctx);
+        self.at_data.set(ctx);
+        unsafe {
+            P1DIR.modify(|x| x | at_mask);
+        }
     }
 
     // Why in japaric's closures access to the pins for an actual write aren't wrapped in unsafe?
-    pub fn xt_out(&self) -> () {
+    pub fn xt_out(&self, ctx : &CriticalSectionToken) -> () {
         let xt_mask : u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
-        critical_section(| | {
-            unsafe {
-                P1OUT.modify(|x| x | xt_mask);
-                P1DIR.modify(|x| x | xt_mask);
-            }
-        })
+        unsafe {
+            P1OUT.modify(|x| x | xt_mask);
+            P1DIR.modify(|x| x | xt_mask);
+        }
     }
 
-    pub fn xt_in(&self) -> () {
+    pub fn xt_in(&self, ctx : &CriticalSectionToken) -> () {
         let xt_mask : u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
-        critical_section(| | {
-            unsafe {
-                P1OUT.modify(|x| x | self.xt_data.bitmask());
-                P1DIR.modify(|x| x & !xt_mask)
-            }
-        })
+        unsafe {
+            P1OUT.modify(|x| x | self.xt_data.bitmask());
+            P1DIR.modify(|x| x & !xt_mask)
+        }
     }
 }
 
@@ -116,29 +105,21 @@ impl Pin {
     }
 
     // unsafe b/c P1OUT can be modified from another thread w/o synchronization.
-    pub fn set(&self) -> () {
-        critical_section(| | {
-            unsafe { P1OUT.modify(|x| x | self.bitmask()) }
-        })
+    pub fn set(&self, ctx : &CriticalSectionToken) -> () {
+        unsafe { P1OUT.modify(|x| x | self.bitmask()) }
     }
 
     // unsafe b/c P1OUT can be modified from another thread w/o synchronization.
-    pub fn unset(&self) -> () {
-        critical_section(| | {
-            unsafe { P1OUT.modify(|x| x & !self.bitmask()); }
-        })
+    pub fn unset(&self, ctx : &CriticalSectionToken) -> () {
+        unsafe { P1OUT.modify(|x| x & !self.bitmask()); }
     }
 
-    pub fn mk_in(&self) -> () {
-        critical_section(| | {
-            unsafe { P1DIR.modify(|x| x & !self.bitmask()); }
-        })
+    pub fn mk_in(&self, ctx : &CriticalSectionToken) -> () {
+        unsafe { P1DIR.modify(|x| x & !self.bitmask()); }
     }
 
-    pub fn mk_out(&self) -> () {
-        critical_section(| | {
-            unsafe { P1DIR.modify(|x| x | self.bitmask()); }
-        })
+    pub fn mk_out(&self, ctx : &CriticalSectionToken) -> () {
+        unsafe { P1DIR.modify(|x| x | self.bitmask()); }
     }
 
 

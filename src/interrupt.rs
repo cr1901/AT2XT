@@ -58,16 +58,19 @@ pub fn is_enabled() -> bool {
     }
 }
 
+pub struct CriticalSectionToken {
+    _0: (),
+}
 
-// Re-entrant. No harm in user code using it, but not really intended to be used by users.
-// This is effectively a smaller scope version of:
+
+// This is effectively a "rewrite" of:
 // https://github.com/japaric/cortex-m/blob/master/src/interrupt.rs#L87
-pub fn critical_section<F, R>(f: F) -> R where F: FnOnce() -> R {
+pub fn critical_section<F, R>(f: F) -> R where F: FnOnce(&CriticalSectionToken) -> R {
     let was_enabled : bool = is_enabled();
 
     disable();
 
-    let r = f();
+    let r = f(&CriticalSectionToken { _0: () });
 
     if was_enabled {
         unsafe { enable() }
