@@ -1,4 +1,5 @@
 use interrupt::CriticalSectionToken;
+use util;
 
 pub struct KeycodeBuffer {
     head : u8,
@@ -43,8 +44,6 @@ impl KeycodeBuffer {
 }
 
 
-// There is no need for a KeyOut struct because shifting out on either the keyboard or
-// host side can have its scope limited to a single function.
 pub struct KeyIn {
     pos : u8,
     contents : u16,
@@ -84,6 +83,49 @@ impl KeyIn {
         } else {
             self.pos = 0;
             Some(self.contents)
+        }
+    }
+}
+
+
+pub struct KeyOut {
+    pos : u8,
+    contents : u16,
+}
+
+impl KeyOut {
+    pub const fn new() -> KeyOut {
+        KeyOut {
+            pos : 0,
+            contents : 0,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pos > 9 // Data 0-7, Parity, and Stop. Start bit has to be handled specially b/c
+                     // it's part of keyboard negotiation.
+    }
+
+    pub fn shift_out(&mut self, ctx : &CriticalSectionToken) -> bool {
+        // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
+        let cast_bit : bool = (self.contents & 0x01) == 1;
+        self.contents = self.contents >> 1;
+        self.pos = self.pos + 1;
+        cast_bit
+    }
+
+    pub fn put(&mut self, byte : u8, ctx : &CriticalSectionToken) -> Result<(), ()> {
+        if !self.is_empty() {
+            Err(())
+        } else {
+            let parity_bit : u16 = if util::compute_parity(byte) {
+                1 << 8
+            } else {
+                0
+            };
+            self.contents = (byte as u16) | parity_bit;
+            self.pos = 0;
+            Ok(())
         }
     }
 }
