@@ -14,7 +14,7 @@ use volatile_register::RO;
 mod keymap;
 
 mod keybuffer;
-use keybuffer::{KeycodeBuffer, KeyIn};
+use keybuffer::{KeycodeBuffer, KeyIn, KeyOut};
 
 mod driver;
 use driver::KeyboardPins;
@@ -53,36 +53,56 @@ unsafe extern "msp430-interrupt" fn timer0_handler() {
 static PORTA_VECTOR: unsafe extern "msp430-interrupt" fn() = porta_handler;
 
 unsafe extern "msp430-interrupt" fn porta_handler() {
-    // if acting_as_host() {
+    if HOST_MODE {
+        critical_section(|cs| {
+            //
+            if !KEY_OUT.is_empty() {
+                if KEY_OUT.shift_out(&cs) {
+                    KEYBOARD_PINS.at_data.set(&cs);
+                } else{
+                    KEYBOARD_PINS.at_data.unset(&cs);
+                }
 
-    // } else {
-    // Interrupts already disabled, and doesn't make sense to nest them, since bits need
-    // to be received in order. Just wrap whole block.
-    critical_section(|cs| {
-        let full : bool;
-
-        // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
-        // sync for nested interrupts while not giving up safety?
-        // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-        unsafe {
-            KEY_IN.shift_in(KEYBOARD_PINS.at_data.is_set(), &cs);
-            full = KEY_IN.is_full();
-        }
-
-        if full {
-            KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
-
-            unsafe {
-                IN_BUFFER.put(KEY_IN.take(&cs).unwrap(), &cs);
-                KEY_IN.clear(&cs);
+                // Immediately after sending out the Stop Bit, we should release the lines.
+                if KEY_OUT.is_empty() {
+                    KEYBOARD_PINS.at_idle(&cs);
+                }
+            } else {
+                if KEYBOARD_PINS.at_data.is_unset() {
+                    DEVICE_ACK = true;
+                    KEY_OUT.clear(&cs);
+                }
             }
 
-            KEYBOARD_PINS.at_idle(&cs);
-        }
-        // }
+            KEYBOARD_PINS.clear_at_clk_int(&cs);
+        });
+    } else {
+        // Interrupts already disabled, and doesn't make sense to nest them, since bits need
+        // to be received in order. Just wrap whole block.
+        critical_section(|cs| {
+            let full : bool;
 
-        KEYBOARD_PINS.clear_at_clk_int(&cs);
-    });
+            // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
+            // sync for nested interrupts while not giving up safety?
+            // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
+            unsafe {
+                KEY_IN.shift_in(KEYBOARD_PINS.at_data.is_set(), &cs);
+                full = KEY_IN.is_full();
+            }
+
+            if full {
+                KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
+
+                unsafe {
+                    IN_BUFFER.put(KEY_IN.take(&cs).unwrap(), &cs);
+                    KEY_IN.clear(&cs);
+                }
+
+                KEYBOARD_PINS.at_idle(&cs);
+            }
+            KEYBOARD_PINS.clear_at_clk_int(&cs);
+        });
+    }
 }
 
 extern "C" {
@@ -96,6 +116,9 @@ extern "C" {
 
 static mut IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
 static mut KEY_IN : KeyIn = KeyIn::new();
+static mut KEY_OUT : KeyOut = KeyOut::new();
+static mut HOST_MODE : bool = false;
+static mut DEVICE_ACK : bool = false;
 static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 
 #[no_mangle]
@@ -128,6 +151,7 @@ pub extern "C" fn main() -> ! {
 
                 // If host computer wants to reset
                 if KEYBOARD_PINS.xt_sense.is_unset() {
+                    send_byte_to_at_keyboard(0xFF);
                     send_byte_to_pc(0xAA);
                     continue 'get_command;
                 }
@@ -190,6 +214,53 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
     });
 }
 
+fn send_byte_to_at_keyboard(mut byte : u8) -> () {
+    critical_section(|cs| {
+        unsafe {
+            KEY_OUT.put(byte, &cs);
+        }   // Safe outside of critical section: As long as HOST_MODE is
+            // not set, it's not possible for the interrupt
+            // context to touch this variable.
+        KEYBOARD_PINS.disable_at_clk_int();
+    });
+
+    while KEYBOARD_PINS.at_clk.is_unset() {
+
+    }
+
+    critical_section(|cs| {
+        KEYBOARD_PINS.at_inhibit(&cs);
+    });
+
+    unsafe { delay(160); } // 100 microseconds
+
+    critical_section(|cs| {
+        KEYBOARD_PINS.at_data.unset(cs);
+    });
+
+    unsafe { delay(53); } // 33 microseconds
+
+    critical_section(|cs| {
+        KEYBOARD_PINS.at_clk.set(cs);
+        KEYBOARD_PINS.at_clk.mk_in(cs);
+        KEYBOARD_PINS.clear_at_clk_int(cs);
+        unsafe {
+            KEYBOARD_PINS.enable_at_clk_int();
+            HOST_MODE = true;
+            DEVICE_ACK= false;
+        }
+    });
+
+    // FIXME: Truly unsafe until I create a mutex later. Data race can occur (but unlikely, for
+    // the sake of testing).
+    unsafe {
+        while !DEVICE_ACK {
+
+        }
+
+        HOST_MODE = false;
+    }
+}
 
 
 

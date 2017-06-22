@@ -106,6 +106,11 @@ impl KeyOut {
                      // it's part of keyboard negotiation.
     }
 
+    pub fn clear(&mut self, ctx : &CriticalSectionToken) {
+        self.pos = 0;
+        self.contents = 0;
+    }
+
     pub fn shift_out(&mut self, ctx : &CriticalSectionToken) -> bool {
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         let cast_bit : bool = (self.contents & 0x01) == 1;
@@ -118,12 +123,13 @@ impl KeyOut {
         if !self.is_empty() {
             Err(())
         } else {
+            let stop_bit : u16 = 1 << 9;
             let parity_bit : u16 = if util::compute_parity(byte) {
                 1 << 8
             } else {
                 0
             };
-            self.contents = (byte as u16) | parity_bit;
+            self.contents = (byte as u16) | parity_bit | stop_bit;
             self.pos = 0;
             Ok(())
         }

@@ -48,6 +48,17 @@ impl KeyboardPins {
         }
     }
 
+    pub fn disable_at_clk_int(&self) -> () {
+        unsafe {
+            P1IE.modify(|x| x & !self.at_clk.bitmask());
+        }
+    }
+
+    // Unsafe because can be used in contexts where it's assumed pin ints can't occur.
+    pub unsafe fn enable_at_clk_int(&self) -> () {
+        P1IE.modify(|x| x | self.at_clk.bitmask());
+    }
+
     pub fn clear_at_clk_int(&self, ctx : &CriticalSectionToken) -> () {
         unsafe {
             P1IFG.modify(|x| x & !self.at_clk.bitmask());
@@ -70,6 +81,13 @@ impl KeyboardPins {
         unsafe {
             P1DIR.modify(|x| x | at_mask);
         }
+    }
+
+    pub fn at_send(&self, ctx : &CriticalSectionToken) -> () {
+        self.at_clk.set(ctx);
+        self.at_data.set(ctx);
+        self.at_clk.mk_in(ctx);
+        self.at_data.mk_out(ctx);
     }
 
     // Why in japaric's closures access to the pins for an actual write aren't wrapped in unsafe?
