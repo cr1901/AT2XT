@@ -136,7 +136,6 @@ pub extern "C" fn main() -> ! {
         BCSCTL2.write(0x04); // Divide submain clock by 4.
     }
 
-
     'get_command: loop {
         // P1OUT.modify(|x| !x);
 
@@ -146,13 +145,14 @@ pub extern "C" fn main() -> ! {
         // the keyboard to send data to the micro at the same time. To keep control flow simple,
         // the micro will only respond to host PC acknowledge requests if its idle.
 
+
         unsafe {
             'idle: while IN_BUFFER.is_empty() {
 
                 // If host computer wants to reset
                 if KEYBOARD_PINS.xt_sense.is_unset() {
                     send_byte_to_at_keyboard(0xFF);
-                    send_byte_to_pc(0xAA);
+                    // send_byte_to_pc(0xAA);
                     continue 'get_command;
                 }
             }
@@ -165,7 +165,7 @@ pub extern "C" fn main() -> ! {
             bits_in = bits_in >> 2; // Remove stop bit and parity bit (FIXME: Check parity).
             let at_keycode : u8 = util::reverse_bits(bits_in as u8);
 
-            send_byte_to_pc(keymap::to_xt(at_keycode));
+            // send_byte_to_pc(keymap::to_xt(at_keycode));
         }
     }
 }
@@ -254,11 +254,11 @@ fn send_byte_to_at_keyboard(mut byte : u8) -> () {
     // FIXME: Truly unsafe until I create a mutex later. Data race can occur (but unlikely, for
     // the sake of testing).
     unsafe {
-        while !DEVICE_ACK {
+        while critical_section(|cs| { !DEVICE_ACK }) {
 
         }
 
-        HOST_MODE = false;
+        critical_section(|cs| { HOST_MODE = false; })
     }
 }
 
