@@ -48,7 +48,7 @@ done:
 pub fn is_enabled() -> bool {
     let r: u16;
     unsafe {
-        asm!("mov sr, $0" : "=r"(r) : : :);
+        asm!("mov sr, $0" : "=r"(r) : : : "volatile");
     }
 
     if (r & 0x08) == 0 {
