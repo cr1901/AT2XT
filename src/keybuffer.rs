@@ -21,7 +21,7 @@ impl KeycodeBuffer {
         self.head = self.tail;
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub fn is_empty(&self, ctx : &CriticalSectionToken) -> bool {
         (self.head - self.tail == 0)
     }
 
@@ -33,7 +33,7 @@ impl KeycodeBuffer {
     }
 
     pub fn take(&mut self, ctx : &CriticalSectionToken) -> Option<u16> {
-        if self.is_empty() {
+        if self.is_empty(ctx) {
             None
         } else {
             let out_key : u16 = self.contents[self.head as usize];

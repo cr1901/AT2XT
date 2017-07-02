@@ -147,7 +147,7 @@ pub extern "C" fn main() -> ! {
 
 
         unsafe {
-            'idle: while IN_BUFFER.is_empty() {
+            'idle: while critical_section(|cs| { IN_BUFFER.is_empty(&cs) }) {
 
                 // If host computer wants to reset
                 if KEYBOARD_PINS.xt_sense.is_unset() {
