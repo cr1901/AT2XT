@@ -73,7 +73,7 @@ impl KeyIn {
             } else {
                 0
             };
-        self.contents = (self.contents << 1) & cast_bit;
+        self.contents = (self.contents << 1) | cast_bit;
         self.pos = self.pos + 1;
     }
 
