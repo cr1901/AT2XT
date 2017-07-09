@@ -134,6 +134,7 @@ pub extern "C" fn main() -> ! {
     unsafe {
         BCSCTL1.write(0x88); // XT2 off, Range Select 7.
         BCSCTL2.write(0x04); // Divide submain clock by 4.
+        interrupt::enable();
     }
 
     'get_command: loop {
