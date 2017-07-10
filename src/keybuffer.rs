@@ -58,7 +58,7 @@ impl KeyIn {
     }
 
     pub fn is_full(&self) -> bool {
-        self.pos < 11
+        self.pos >= 11
     }
 
     pub fn clear(&mut self, ctx : &CriticalSectionToken) {
