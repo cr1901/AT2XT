@@ -8,8 +8,7 @@ authors = ["William D. Jones <thor0505@comcast.net>"]
 volatile-register = "0.1.2"
 
 [dependencies.bit_reverse]
-git = "https://github.com/cr1901/bit_reverse"
-branch = "patch-1"
+version = "0.1.7"
 default_features = false
 
 [profile.dev]
