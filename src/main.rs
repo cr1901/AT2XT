@@ -11,6 +11,9 @@ extern crate volatile_register;
 use volatile_register::RW;
 use volatile_register::RO;
 
+mod keyfsm;
+use keyfsm::{Cmd, ProcReply, Fsm};
+
 mod keymap;
 
 mod keybuffer;
@@ -144,31 +147,51 @@ pub extern "C" fn main() -> ! {
 
     send_byte_to_at_keyboard(0xFF);
 
+    let mut at_keycode: u8 = 0;
+    let mut loop_cmd : Cmd;
+    let mut loop_reply : ProcReply = ProcReply::init();
+    let mut fsm_driver : Fsm = Fsm::start();
+
     'get_command: loop {
-        let mut at_keycode: u8 = 0;
         // Run state machine/send reply. Receive new cmd.
+        loop_cmd = fsm_driver.run(&loop_reply).unwrap();
 
-        // The micro spends the majority of its life idle. It is possible for the host PC and
-        // the keyboard to send data to the micro at the same time. To keep control flow simple,
-        // the micro will only respond to host PC acknowledge requests if its idle.
-        unsafe {
-            'idle: while critical_section(|cs| { IN_BUFFER.is_empty(&cs) }) {
+        loop_reply = match loop_cmd {
+            Cmd::ClearBuffer => { ProcReply::ClearedBuffer },
+            Cmd::SendXTKey(k) => {
+                send_byte_to_pc(k);
+                ProcReply::SentKey(k)
+            },
+            Cmd::WaitForKey => {
+                // The micro spends the majority of its life idle. It is possible for the host PC and
+                // the keyboard to send data to the micro at the same time. To keep control flow simple,
+                // the micro will only respond to host PC acknowledge requests if its idle.
+                let mut xt_reset : bool = false;
+                unsafe {
+                    'idle: while critical_section(|cs| { IN_BUFFER.is_empty(&cs) }) {
+                        // If host computer wants to reset
+                        if KEYBOARD_PINS.xt_sense.is_unset() {
+                            send_byte_to_at_keyboard(0xFF);
+                            send_byte_to_pc(0xAA);
+                            xt_reset = true;
+                            break;
+                        }
+                    }
 
-                // If host computer wants to reset
-                if KEYBOARD_PINS.xt_sense.is_unset() {
-                    send_byte_to_at_keyboard(0xFF);
-                    send_byte_to_pc(0xAA);
-                    continue 'get_command;
+                    if xt_reset {
+                        ProcReply::KeyboardReset
+                    } else {
+                        let mut bits_in = critical_section(|cs|{
+                            IN_BUFFER.take(&cs).unwrap()
+                        });
+
+                        bits_in = bits_in & !(0x4000 + 0x0001); // Mask out start/stop bit.
+                        bits_in = bits_in >> 2; // Remove stop bit and parity bit (FIXME: Check parity).
+                        ProcReply::GrabbedKey(util::reverse_bits(bits_in as u8))
+                    }
                 }
-            }
+            },
 
-            let mut bits_in = critical_section(|cs|{
-                IN_BUFFER.take(&cs).unwrap()
-            });
-
-            bits_in = bits_in & !(0x4000 + 0x0001); // Mask out start/stop bit.
-            bits_in = bits_in >> 2; // Remove stop bit and parity bit (FIXME: Check parity).
-            at_keycode = util::reverse_bits(bits_in as u8);
         }
     }
 }
