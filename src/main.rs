@@ -129,6 +129,11 @@ pub extern "C" fn main() -> ! {
 
     critical_section(|cs| {
         KEYBOARD_PINS.idle(&cs); // FIXME: Can we make this part of new()?
+        unsafe {
+            KEY_OUT.clear(&cs); // Currently, no support for DATA section, so what should be a const fn
+            // to initialize KEY_OUT buffer to empty (pos > 10, i.e. nonzero) must be done
+            // manually.
+        }
     });
 
     unsafe {
@@ -153,7 +158,7 @@ pub extern "C" fn main() -> ! {
                 // If host computer wants to reset
                 if KEYBOARD_PINS.xt_sense.is_unset() {
                     send_byte_to_at_keyboard(0xFF);
-                    // send_byte_to_pc(0xAA);
+                    send_byte_to_pc(0xAA);
                     continue 'get_command;
                 }
             }

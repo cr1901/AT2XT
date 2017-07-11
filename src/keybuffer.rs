@@ -96,7 +96,7 @@ pub struct KeyOut {
 impl KeyOut {
     pub const fn new() -> KeyOut {
         KeyOut {
-            pos : 0,
+            pos : 10,
             contents : 0,
         }
     }
@@ -107,7 +107,7 @@ impl KeyOut {
     }
 
     pub fn clear(&mut self, ctx : &CriticalSectionToken) {
-        self.pos = 0;
+        self.pos = 10;
         self.contents = 0;
     }
 
