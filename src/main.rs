@@ -142,16 +142,15 @@ pub extern "C" fn main() -> ! {
         interrupt::enable();
     }
 
-    'get_command: loop {
-        // P1OUT.modify(|x| !x);
+    send_byte_to_at_keyboard(0xFF);
 
+    'get_command: loop {
+        let mut at_keycode: u8 = 0;
         // Run state machine/send reply. Receive new cmd.
 
         // The micro spends the majority of its life idle. It is possible for the host PC and
         // the keyboard to send data to the micro at the same time. To keep control flow simple,
         // the micro will only respond to host PC acknowledge requests if its idle.
-
-
         unsafe {
             'idle: while critical_section(|cs| { IN_BUFFER.is_empty(&cs) }) {
 
@@ -169,9 +168,7 @@ pub extern "C" fn main() -> ! {
 
             bits_in = bits_in & !(0x4000 + 0x0001); // Mask out start/stop bit.
             bits_in = bits_in >> 2; // Remove stop bit and parity bit (FIXME: Check parity).
-            let at_keycode : u8 = util::reverse_bits(bits_in as u8);
-
-            // send_byte_to_pc(keymap::to_xt(at_keycode));
+            at_keycode = util::reverse_bits(bits_in as u8);
         }
     }
 }
@@ -267,9 +264,6 @@ fn send_byte_to_at_keyboard(mut byte : u8) -> () {
         critical_section(|cs| { HOST_MODE = false; })
     }
 }
-
-
-
 
 unsafe fn delay(n: u16) {
     asm!(r#"
