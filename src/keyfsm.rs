@@ -36,22 +36,20 @@ enum state {
     SimpleKey(u8),
     PossibleBreakCode,
     KnownBreakCode(u8),
-    //UnmodifiedKey,
+    UnmodifiedKey(u8),
+    // InPause(u8), // Number of keycodes in pause left to handle- alternate impl.
     Inconsistent,
     ExpectingBufferClear,
-    //ExpectingEcho,
-    //SendXTByte(u8),
-    //GetXTByteF0,
-    //InPause(u8),  // Number of keycodes in pause left to handle.
 }
 
 pub struct Fsm {
     curr_state : state,
+    expecting_pause : bool
 }
 
 impl Fsm {
     pub fn start() -> Fsm {
-        Fsm { curr_state : state::NotInKey }
+        Fsm { curr_state : state::NotInKey, expecting_pause : false }
     }
 
     pub fn run(&mut self, curr_reply : &ProcReply) -> Result<Cmd, Cmd> {
@@ -62,6 +60,7 @@ impl Fsm {
             &state::SimpleKey(k) => { Ok(Cmd::SendXTKey(keymap::to_xt(k))) },
             &state::PossibleBreakCode => { Ok(Cmd::WaitForKey) },
             &state::KnownBreakCode(b) => { Ok(Cmd::SendXTKey(keymap::to_xt(b) | 0x80)) },
+            &state::UnmodifiedKey(u) => { Ok(Cmd::SendXTKey(u)) },
             &state::ExpectingBufferClear => { Ok(Cmd::ClearBuffer) }
             &state::Inconsistent => { Err(Cmd::WaitForKey) }
         };
@@ -83,9 +82,8 @@ impl Fsm {
                     0xee => { Ok(state::NotInKey) },
 
                     0xf0 => { Ok(state::PossibleBreakCode) },
-
-                    //0xe0 => { Ok(state::UnmodifiedKey) },
-                    //0xe1 => { Ok(state::UnmodifiedKey) },
+                    0xe0 => { Ok(state::UnmodifiedKey(k)) },
+                    // 0xe1 => { Ok(state::UnmodifiedKey) },
 
                     _ => { Ok(state::SimpleKey(k)) }
                 }
@@ -98,6 +96,7 @@ impl Fsm {
                 }
             },
             (&state::KnownBreakCode(_), &ProcReply::SentKey(_)) => { Ok(state::NotInKey) },
+            (&state::UnmodifiedKey(_), &ProcReply::SentKey(_)) => { Ok(state::NotInKey) },
             (&state::ExpectingBufferClear, &ProcReply::ClearedBuffer) => { Ok(state::NotInKey) },
             (_, _) => { Err(state::Inconsistent) },
 
