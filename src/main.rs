@@ -300,5 +300,7 @@ unsafe fn delay(n: u16) {
 #[no_mangle]
 #[lang = "panic_fmt"]
 extern "C" fn panic_fmt() -> ! {
-    loop {}
+    loop {
+        unsafe { asm!("nop" ::: "memory" : "volatile"); }
+    }
 }
