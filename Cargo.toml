@@ -6,10 +6,14 @@ authors = ["William D. Jones <thor0505@comcast.net>"]
 
 [dependencies]
 volatile-register = "0.1.2"
+bare-metal = "0.1.0"
 
 [dependencies.bit_reverse]
 version = "0.1.7"
 default_features = false
+
+[dependencies.msp430]
+git = "https://github.com/pftbest/msp430"
 
 [profile.dev]
 debug = true

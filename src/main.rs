@@ -7,8 +7,13 @@
 #![feature(abi_msp430_interrupt)]
 #![feature(const_fn)]
 
+extern crate bare_metal;
+
 extern crate volatile_register;
 use volatile_register::RW;
+
+extern crate msp430;
+use msp430::interrupt::{enable, free};
 
 mod keyfsm;
 use keyfsm::{Cmd, ProcReply, Fsm};
@@ -20,9 +25,6 @@ use keybuffer::{KeycodeBuffer, KeyIn, KeyOut};
 
 mod driver;
 use driver::KeyboardPins;
-
-mod interrupt;
-use interrupt::critical_section;
 
 mod util;
 
@@ -56,7 +58,7 @@ static PORTA_VECTOR: unsafe extern "msp430-interrupt" fn() = porta_handler;
 
 unsafe extern "msp430-interrupt" fn porta_handler() {
     if HOST_MODE {
-        critical_section(|cs| {
+        free(|cs| {
             //
             if !KEY_OUT.is_empty() {
                 if KEY_OUT.shift_out(&cs) {
@@ -81,7 +83,7 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
     } else {
         // Interrupts already disabled, and doesn't make sense to nest them, since bits need
         // to be received in order. Just wrap whole block.
-        critical_section(|cs| {
+        free(|cs| {
             let full : bool;
 
             // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
@@ -125,7 +127,7 @@ pub extern "C" fn main() -> ! {
         WDTCTL.write(0x5A00 + 0x80); // WDTPW + WDTHOLD
     }
 
-    critical_section(|cs| {
+    free(|cs| {
         KEYBOARD_PINS.idle(&cs); // FIXME: Can we make this part of new()?
         unsafe {
             KEY_OUT.clear(&cs); // Currently, no support for DATA section, so what should be a const fn
@@ -144,7 +146,7 @@ pub extern "C" fn main() -> ! {
     unsafe {
         BCSCTL1.write(0x88); // XT2 off, Range Select 7.
         BCSCTL2.write(0x04); // Divide submain clock by 4.
-        interrupt::enable();
+        enable(); // Enable interrupts.
     }
 
     send_byte_to_at_keyboard(0xFF);
@@ -159,7 +161,7 @@ pub extern "C" fn main() -> ! {
 
         loop_reply = match loop_cmd {
             Cmd::ClearBuffer => {
-                critical_section(|cs| {
+                free(|cs| {
                     unsafe { IN_BUFFER.flush(&cs); }
                 });
                 ProcReply::ClearedBuffer
@@ -178,7 +180,7 @@ pub extern "C" fn main() -> ! {
                 // the micro will only respond to host PC acknowledge requests if its idle.
                 let mut xt_reset : bool = false;
                 unsafe {
-                    'idle: while critical_section(|cs| { IN_BUFFER.is_empty(&cs) }) {
+                    'idle: while free(|cs| { IN_BUFFER.is_empty(&cs) }) {
                         // If host computer wants to reset
                         if KEYBOARD_PINS.xt_sense.is_unset() {
                             send_byte_to_at_keyboard(0xFF);
@@ -191,7 +193,7 @@ pub extern "C" fn main() -> ! {
                     if xt_reset {
                         ProcReply::KeyboardReset
                     } else {
-                        let mut bits_in = critical_section(|cs|{
+                        let mut bits_in = free(|cs|{
                             IN_BUFFER.take(&cs).unwrap()
                         });
 
@@ -207,7 +209,7 @@ pub extern "C" fn main() -> ! {
 }
 
 pub fn send_xt_bit(bit : u8) -> () {
-    critical_section(|cs| {
+    free(|cs| {
         if bit == 1 {
             KEYBOARD_PINS.xt_data.set(&cs);
         } else {
@@ -219,7 +221,7 @@ pub fn send_xt_bit(bit : u8) -> () {
 
     unsafe { delay(88); } // 55 microseconds at 1.6 MHz
 
-    critical_section(|cs| {
+    free(|cs| {
         KEYBOARD_PINS.xt_clk.set(&cs);
     });
 }
@@ -233,7 +235,7 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
 
     }
 
-    critical_section(|cs| {
+    free(|cs| {
         KEYBOARD_PINS.xt_out(&cs);
     });
 
@@ -245,13 +247,13 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
 		byte = byte >> 1;
     }
 
-    critical_section(|cs| {
+    free(|cs| {
         KEYBOARD_PINS.xt_in(&cs);
     });
 }
 
 fn send_byte_to_at_keyboard(byte : u8) -> () {
-    critical_section(|cs| {
+    free(|cs| {
         unsafe {
             KEY_OUT.put(byte, &cs).unwrap();
         }   // Safe outside of critical section: As long as HOST_MODE is
@@ -264,19 +266,19 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
 
     }
 
-    critical_section(|cs| {
+    free(|cs| {
         KEYBOARD_PINS.at_inhibit(&cs);
     });
 
     unsafe { delay(160); } // 100 microseconds
 
-    critical_section(|cs| {
+    free(|cs| {
         KEYBOARD_PINS.at_data.unset(cs);
     });
 
     unsafe { delay(53); } // 33 microseconds
 
-    critical_section(|cs| {
+    free(|cs| {
         KEYBOARD_PINS.at_clk.set(cs);
         KEYBOARD_PINS.at_clk.mk_in(cs);
         KEYBOARD_PINS.clear_at_clk_int(cs);
@@ -290,12 +292,12 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
     // FIXME: Truly unsafe until I create a mutex later. Data race can occur (but unlikely, for
     // the sake of testing).
     unsafe {
-        while critical_section(|cs| {
+        while free(|cs| {
             let _ = cs;
             !DEVICE_ACK
         }) { }
 
-        critical_section(|cs| {
+        free(|cs| {
             let _ = cs;
             HOST_MODE = false;
         })

@@ -1,4 +1,4 @@
-use interrupt::CriticalSectionToken;
+use bare_metal::CriticalSection;
 use util;
 
 pub struct KeycodeBuffer {
@@ -16,18 +16,18 @@ impl KeycodeBuffer {
         }
     }
 
-    pub fn flush(&mut self, ctx : &CriticalSectionToken) -> () {
+    pub fn flush(&mut self, ctx : &CriticalSection) -> () {
         let _ = ctx;
         self.tail = 0;
         self.head = 0;
     }
 
-    pub fn is_empty(&self, ctx : &CriticalSectionToken) -> bool {
+    pub fn is_empty(&self, ctx : &CriticalSection) -> bool {
         let _ = ctx;
         (self.head - self.tail == 0)
     }
 
-    pub fn put(&mut self, in_key : u16, ctx : &CriticalSectionToken) -> () {
+    pub fn put(&mut self, in_key : u16, ctx : &CriticalSection) -> () {
         let _ = ctx;
         // TODO: A full buffer is an abnormal condition worth a panic/reset.
 
@@ -35,7 +35,7 @@ impl KeycodeBuffer {
         self.tail = (self.tail + 1) % 16;
     }
 
-    pub fn take(&mut self, ctx : &CriticalSectionToken) -> Option<u16> {
+    pub fn take(&mut self, ctx : &CriticalSection) -> Option<u16> {
         if self.is_empty(ctx) {
             None
         } else {
@@ -64,13 +64,13 @@ impl KeyIn {
         self.pos >= 11
     }
 
-    pub fn clear(&mut self, ctx : &CriticalSectionToken) {
+    pub fn clear(&mut self, ctx : &CriticalSection) {
         let _ = ctx;
         self.pos = 0;
         self.contents = 0;
     }
 
-    pub fn shift_in(&mut self, bit : bool, ctx : &CriticalSectionToken) -> () {
+    pub fn shift_in(&mut self, bit : bool, ctx : &CriticalSection) -> () {
         let _ = ctx;
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         let cast_bit : u16 = if bit {
@@ -82,7 +82,7 @@ impl KeyIn {
         self.pos = self.pos + 1;
     }
 
-    pub fn take(&mut self, ctx : &CriticalSectionToken) -> Option<u16> {
+    pub fn take(&mut self, ctx : &CriticalSection) -> Option<u16> {
         let _ = ctx;
         if !self.is_full() {
             None
@@ -112,13 +112,13 @@ impl KeyOut {
                      // it's part of keyboard negotiation.
     }
 
-    pub fn clear(&mut self, ctx : &CriticalSectionToken) {
+    pub fn clear(&mut self, ctx : &CriticalSection) {
         let _ = ctx;
         self.pos = 10;
         self.contents = 0;
     }
 
-    pub fn shift_out(&mut self, ctx : &CriticalSectionToken) -> bool {
+    pub fn shift_out(&mut self, ctx : &CriticalSection) -> bool {
         let _ = ctx;
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         let cast_bit : bool = (self.contents & 0x01) == 1;
@@ -127,7 +127,7 @@ impl KeyOut {
         cast_bit
     }
 
-    pub fn put(&mut self, byte : u8, ctx : &CriticalSectionToken) -> Result<(), ()> {
+    pub fn put(&mut self, byte : u8, ctx : &CriticalSection) -> Result<(), ()> {
         let _ = ctx;
         if !self.is_empty() {
             Err(())
