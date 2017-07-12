@@ -7,7 +7,10 @@
 #![feature(abi_msp430_interrupt)]
 #![feature(const_fn)]
 
+use core::cell::Cell;
+
 extern crate bare_metal;
+use bare_metal::{Mutex};
 
 extern crate volatile_register;
 use volatile_register::RW;
@@ -56,9 +59,10 @@ unsafe extern "msp430-interrupt" fn timer0_handler() {
 static PORTA_VECTOR: unsafe extern "msp430-interrupt" fn() = porta_handler;
 
 unsafe extern "msp430-interrupt" fn porta_handler() {
-    if HOST_MODE {
-        free(|cs| {
-            //
+    // Interrupts already disabled, and doesn't make sense to nest them, since bits need
+    // to be received in order. Just wrap whole block.
+    free(|cs| {
+        if HOST_MODE.borrow(cs).get() {
             if !KEY_OUT.is_empty() {
                 if KEY_OUT.shift_out(&cs) {
                     KEYBOARD_PINS.at_data.set(&cs);
@@ -72,17 +76,13 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
                 }
             } else {
                 if KEYBOARD_PINS.at_data.is_unset() {
-                    DEVICE_ACK = true;
+                    DEVICE_ACK.borrow(cs).set(true);
                     KEY_OUT.clear(&cs);
                 }
             }
 
             KEYBOARD_PINS.clear_at_clk_int(&cs);
-        });
-    } else {
-        // Interrupts already disabled, and doesn't make sense to nest them, since bits need
-        // to be received in order. Just wrap whole block.
-        free(|cs| {
+        } else {
             let full : bool;
 
             // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
@@ -100,8 +100,8 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
                 KEYBOARD_PINS.at_idle(&cs);
             }
             KEYBOARD_PINS.clear_at_clk_int(&cs);
-        });
-    }
+        }
+    });
 }
 
 extern "C" {
@@ -116,8 +116,8 @@ extern "C" {
 static mut IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
 static mut KEY_IN : KeyIn = KeyIn::new();
 static mut KEY_OUT : KeyOut = KeyOut::new();
-static mut HOST_MODE : bool = false;
-static mut DEVICE_ACK : bool = false;
+static HOST_MODE : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
+static DEVICE_ACK : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 
 #[no_mangle]
@@ -136,10 +136,9 @@ pub extern "C" fn main() -> ! {
             // support which I do not currently have.
             IN_BUFFER.flush(&cs);
             KEY_IN.clear(&cs);
-            HOST_MODE = false;
-            DEVICE_ACK = false;
-
         }
+        HOST_MODE.borrow(cs).set(false);
+        DEVICE_ACK.borrow(cs).set(false);
     });
 
     unsafe {
@@ -283,24 +282,20 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
         KEYBOARD_PINS.clear_at_clk_int(cs);
         unsafe {
             KEYBOARD_PINS.enable_at_clk_int();
-            HOST_MODE = true;
-            DEVICE_ACK= false;
         }
+        HOST_MODE.borrow(cs).set(true);
+        DEVICE_ACK.borrow(cs).set(false);
     });
 
     // FIXME: Truly unsafe until I create a mutex later. Data race can occur (but unlikely, for
     // the sake of testing).
-    unsafe {
-        while free(|cs| {
-            let _ = cs;
-            !DEVICE_ACK
-        }) { }
+    while free(|cs| {
+        DEVICE_ACK.borrow(cs).get()
+    }) { }
 
-        free(|cs| {
-            let _ = cs;
-            HOST_MODE = false;
-        })
-    }
+    free(|cs| {
+        HOST_MODE.borrow(cs).set(false);
+    })
 }
 
 fn toggle_leds(mask : u8) -> () {

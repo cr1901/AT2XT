@@ -3,5 +3,6 @@ rustflags = [
     "-C", "link-arg=-Tmsp430g2211.ld",
     "-C", "link-arg=-mmcu=msp430g2211",
     "-C", "link-arg=-nostartfiles",
-    "-C", "link-arg=-lmul_none"
+    "-C", "link-arg=-lmul_none",
+#    "-C", "opt-level=s",
 ]
