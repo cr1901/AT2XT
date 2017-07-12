@@ -97,8 +97,7 @@ impl Fsm {
                     _ => { Ok(state::KnownBreakCode(k)) }
                 }
             },
-
-
+            (&state::KnownBreakCode(_), &ProcReply::SentKey(_)) => { Ok(state::NotInKey) },
             (&state::ExpectingBufferClear, &ProcReply::ClearedBuffer) => { Ok(state::NotInKey) },
             (_, _) => { Err(state::Inconsistent) },
 

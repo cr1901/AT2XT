@@ -164,7 +164,12 @@ pub extern "C" fn main() -> ! {
         loop_cmd = fsm_driver.run(&loop_reply).unwrap();
 
         loop_reply = match loop_cmd {
-            Cmd::ClearBuffer => { ProcReply::ClearedBuffer },
+            Cmd::ClearBuffer => {
+                critical_section(|cs| {
+                    unsafe { IN_BUFFER.flush(&cs); }
+                });
+                ProcReply::ClearedBuffer
+            },
             Cmd::SendXTKey(k) => {
                 send_byte_to_pc(k);
                 ProcReply::SentKey(k)
