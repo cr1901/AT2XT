@@ -17,15 +17,18 @@ impl KeycodeBuffer {
     }
 
     pub fn flush(&mut self, ctx : &CriticalSectionToken) -> () {
+        let _ = ctx;
         self.tail = 0;
         self.head = 0;
     }
 
     pub fn is_empty(&self, ctx : &CriticalSectionToken) -> bool {
+        let _ = ctx;
         (self.head - self.tail == 0)
     }
 
     pub fn put(&mut self, in_key : u16, ctx : &CriticalSectionToken) -> () {
+        let _ = ctx;
         // TODO: A full buffer is an abnormal condition worth a panic/reset.
 
         self.contents[self.tail as usize] = in_key;
@@ -62,11 +65,13 @@ impl KeyIn {
     }
 
     pub fn clear(&mut self, ctx : &CriticalSectionToken) {
+        let _ = ctx;
         self.pos = 0;
         self.contents = 0;
     }
 
     pub fn shift_in(&mut self, bit : bool, ctx : &CriticalSectionToken) -> () {
+        let _ = ctx;
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         let cast_bit : u16 = if bit {
                 1
@@ -78,6 +83,7 @@ impl KeyIn {
     }
 
     pub fn take(&mut self, ctx : &CriticalSectionToken) -> Option<u16> {
+        let _ = ctx;
         if !self.is_full() {
             None
         } else {
@@ -107,11 +113,13 @@ impl KeyOut {
     }
 
     pub fn clear(&mut self, ctx : &CriticalSectionToken) {
+        let _ = ctx;
         self.pos = 10;
         self.contents = 0;
     }
 
     pub fn shift_out(&mut self, ctx : &CriticalSectionToken) -> bool {
+        let _ = ctx;
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         let cast_bit : bool = (self.contents & 0x01) == 1;
         self.contents = self.contents >> 1;
@@ -120,6 +128,7 @@ impl KeyOut {
     }
 
     pub fn put(&mut self, byte : u8, ctx : &CriticalSectionToken) -> Result<(), ()> {
+        let _ = ctx;
         if !self.is_empty() {
             Err(())
         } else {
@@ -135,14 +144,3 @@ impl KeyOut {
         }
     }
 }
-
-// https://doc.rust-lang.org/src/core/panicking.rs.html#54-58
-// panic_fmt is used from core::panicking even though I declared my own, and additionally
-// the number of args don't match! Why?
-// I can't prevent bringing in core::fmt::Display with bounds checking, so I'll have to
-// do it manually.
-/* #[used]
-#[lang = "panic_bounds_check"]
-extern "C" fn panic_bounds_check() -> ! {
-    loop {}
-} */

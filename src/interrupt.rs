@@ -1,5 +1,3 @@
-#![feature(asm)]
-
 #[inline(always)]
 // Unsafe because it can be used to reenable interrupts anywhere, including regions where it
 // is assumed interrupts cannot occur.

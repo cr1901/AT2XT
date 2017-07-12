@@ -2,7 +2,6 @@ use volatile_register::RW;
 use volatile_register::RO;
 
 use ::interrupt::CriticalSectionToken;
-use ::interrupt::critical_section;
 
 extern "C" {
     static P1IN: RO<u8>;
@@ -40,6 +39,7 @@ impl KeyboardPins {
     // Option 1: Possible to make fully safe using was_initialized?
     // Pitfall 1: Does globally enable
     pub fn idle(&self, ctx : &CriticalSectionToken)  -> () {
+        let _ = ctx;
         unsafe {
             P1DIR.write(0x00);
             P1IFG.modify(|x| x & !self.at_clk.bitmask());
@@ -60,6 +60,7 @@ impl KeyboardPins {
     }
 
     pub fn clear_at_clk_int(&self, ctx : &CriticalSectionToken) -> () {
+        let _ = ctx;
         unsafe {
             P1IFG.modify(|x| x & !self.at_clk.bitmask());
         }
@@ -83,7 +84,9 @@ impl KeyboardPins {
         }
     }
 
+    #[allow(dead_code)]
     pub fn at_send(&self, ctx : &CriticalSectionToken) -> () {
+        let _ = ctx;
         self.at_clk.set(ctx);
         self.at_data.set(ctx);
         self.at_clk.mk_in(ctx);
@@ -92,6 +95,7 @@ impl KeyboardPins {
 
     // Why in japaric's closures access to the pins for an actual write aren't wrapped in unsafe?
     pub fn xt_out(&self, ctx : &CriticalSectionToken) -> () {
+        let _ = ctx;
         let xt_mask : u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
         unsafe {
             P1OUT.modify(|x| x | xt_mask);
@@ -100,6 +104,7 @@ impl KeyboardPins {
     }
 
     pub fn xt_in(&self, ctx : &CriticalSectionToken) -> () {
+        let _ = ctx;
         let xt_mask : u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
         unsafe {
             P1OUT.modify(|x| x | self.xt_data.bitmask());
@@ -124,19 +129,24 @@ impl Pin {
 
     // unsafe b/c P1OUT can be modified from another thread w/o synchronization.
     pub fn set(&self, ctx : &CriticalSectionToken) -> () {
+        let _ = ctx;
         unsafe { P1OUT.modify(|x| x | self.bitmask()) }
     }
 
     // unsafe b/c P1OUT can be modified from another thread w/o synchronization.
     pub fn unset(&self, ctx : &CriticalSectionToken) -> () {
+        let _ = ctx;
         unsafe { P1OUT.modify(|x| x & !self.bitmask()); }
     }
 
     pub fn mk_in(&self, ctx : &CriticalSectionToken) -> () {
+        let _ = ctx;
         unsafe { P1DIR.modify(|x| x & !self.bitmask()); }
     }
 
+    #[allow(dead_code)]
     pub fn mk_out(&self, ctx : &CriticalSectionToken) -> () {
+        let _ = ctx;
         unsafe { P1DIR.modify(|x| x | self.bitmask()); }
     }
 

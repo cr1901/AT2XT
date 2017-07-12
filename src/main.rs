@@ -9,7 +9,6 @@
 
 extern crate volatile_register;
 use volatile_register::RW;
-use volatile_register::RO;
 
 mod keyfsm;
 use keyfsm::{Cmd, ProcReply, Fsm};
@@ -88,18 +87,14 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
             // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
             // sync for nested interrupts while not giving up safety?
             // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-            unsafe {
-                KEY_IN.shift_in(KEYBOARD_PINS.at_data.is_set(), &cs);
-                full = KEY_IN.is_full();
-            }
+            KEY_IN.shift_in(KEYBOARD_PINS.at_data.is_set(), &cs);
+            full = KEY_IN.is_full();
 
             if full {
                 KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
 
-                unsafe {
-                    IN_BUFFER.put(KEY_IN.take(&cs).unwrap(), &cs);
-                    KEY_IN.clear(&cs);
-                }
+                IN_BUFFER.put(KEY_IN.take(&cs).unwrap(), &cs);
+                KEY_IN.clear(&cs);
 
                 KEYBOARD_PINS.at_idle(&cs);
             }
@@ -154,7 +149,6 @@ pub extern "C" fn main() -> ! {
 
     send_byte_to_at_keyboard(0xFF);
 
-    let mut at_keycode: u8 = 0;
     let mut loop_cmd : Cmd;
     let mut loop_reply : ProcReply = ProcReply::init();
     let mut fsm_driver : Fsm = Fsm::start();
@@ -171,7 +165,7 @@ pub extern "C" fn main() -> ! {
                 ProcReply::ClearedBuffer
             },
             Cmd::ToggleLed(m) => {
-                toggle_LEDs(m);
+                toggle_leds(m);
                 ProcReply::LedToggled(m)
             }
             Cmd::SendXTKey(k) => {
@@ -256,10 +250,10 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
     });
 }
 
-fn send_byte_to_at_keyboard(mut byte : u8) -> () {
+fn send_byte_to_at_keyboard(byte : u8) -> () {
     critical_section(|cs| {
         unsafe {
-            KEY_OUT.put(byte, &cs);
+            KEY_OUT.put(byte, &cs).unwrap();
         }   // Safe outside of critical section: As long as HOST_MODE is
             // not set, it's not possible for the interrupt
             // context to touch this variable.
@@ -296,15 +290,19 @@ fn send_byte_to_at_keyboard(mut byte : u8) -> () {
     // FIXME: Truly unsafe until I create a mutex later. Data race can occur (but unlikely, for
     // the sake of testing).
     unsafe {
-        while critical_section(|cs| { !DEVICE_ACK }) {
+        while critical_section(|cs| {
+            let _ = cs;
+            !DEVICE_ACK
+        }) { }
 
-        }
-
-        critical_section(|cs| { HOST_MODE = false; })
+        critical_section(|cs| {
+            let _ = cs;
+            HOST_MODE = false;
+        })
     }
 }
 
-fn toggle_LEDs(mask : u8) -> () {
+fn toggle_leds(mask : u8) -> () {
     send_byte_to_at_keyboard(0xED);
     unsafe { delay(5000); }
     send_byte_to_at_keyboard(mask);
@@ -322,6 +320,7 @@ unsafe fn delay(n: u16) {
 #[used]
 #[no_mangle]
 #[lang = "panic_fmt"]
+#[allow(private_no_mangle_fns)]
 extern "C" fn panic_fmt() -> ! {
     loop {
         unsafe { asm!("nop" ::: "memory" : "volatile"); }
