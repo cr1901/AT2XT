@@ -21,8 +21,6 @@ use bit_reverse::ParallelReverse;
 mod keyfsm;
 use keyfsm::{Cmd, ProcReply, Fsm};
 
-mod keymap;
-
 mod keybuffer;
 use keybuffer::{KeycodeBuffer, KeyIn, KeyOut};
 
