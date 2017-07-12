@@ -16,9 +16,9 @@ impl KeycodeBuffer {
         }
     }
 
-    pub fn flush(&mut self) -> () {
-        // TODO: For a debug build, reset all fields to 0?
-        self.head = self.tail;
+    pub fn flush(&mut self, ctx : &CriticalSectionToken) -> () {
+        self.tail = 0;
+        self.head = 0;
     }
 
     pub fn is_empty(&self, ctx : &CriticalSectionToken) -> bool {

@@ -136,6 +136,13 @@ pub extern "C" fn main() -> ! {
             KEY_OUT.clear(&cs); // Currently, no support for DATA section, so what should be a const fn
             // to initialize KEY_OUT buffer to empty (pos > 10, i.e. nonzero) must be done
             // manually.
+            // Upon further bug flushing: All const fns do not currently work; assumes runtime
+            // support which I do not currently have.
+            IN_BUFFER.flush(&cs);
+            KEY_IN.clear(&cs);
+            HOST_MODE = false;
+            DEVICE_ACK = false;
+
         }
     });
 
