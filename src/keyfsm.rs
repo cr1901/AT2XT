@@ -1,3 +1,6 @@
+
+use core::ptr::read_volatile;
+
 use ::keymap;
 
 #[derive(Debug)]
@@ -6,6 +9,9 @@ pub enum Cmd {
     ClearBuffer, // If Reset Occurs.
     SendXTKey(u8),
 }
+
+static DUMMY_1 : u8 = 0;
+static DUMMY_2 : u8 = 0;
 
 /* impl Cmd {
     pub fn init() -> Cmd {
@@ -54,6 +60,7 @@ impl Fsm {
         Fsm { curr_state : state::NotInKey }
     }
 
+    #[inline(never)]
     pub fn run(&mut self, curr_reply : &ProcReply) -> Result<Cmd, Cmd> {
         let next_state = self.next_state(curr_reply).unwrap();
 
@@ -70,6 +77,7 @@ impl Fsm {
         next_cmd
     }
 
+
     fn next_state(&self, curr_reply : &ProcReply) -> Result<state, state> {
         match (&self.curr_state, curr_reply) {
             (_, &ProcReply::KeyboardReset) => { Ok(state::ExpectingBufferClear) },
@@ -83,7 +91,8 @@ impl Fsm {
                     0xee => { Ok(state::NotInKey) },
 
                     0xf0 => {
-                        panic!(); // This doesn't!
+                        unsafe { read_volatile(&DUMMY_2 as * const u8); }
+                        //panic!(); // This doesn't!
                         Ok(state::PossibleBreakCode)
                     },
 
@@ -91,7 +100,8 @@ impl Fsm {
                     //0xe1 => { Ok(state::UnmodifiedKey) },
 
                     _ => {
-                        // panic!(); // This panics!
+                        unsafe { read_volatile(&DUMMY_1 as * const u8); }
+                        panic!(); // This panics!
                         Ok(state::SimpleKey(k)) }
                 }
             },
