@@ -1,5 +1,4 @@
 use bare_metal::CriticalSection;
-use util;
 
 pub struct KeycodeBuffer {
     head : u8,
@@ -132,8 +131,16 @@ impl KeyOut {
         if !self.is_empty() {
             Err(())
         } else {
+            let mut sout = byte;
+            let mut num_ones : u8 = 0;
+
+            for _ in 0..8 {
+                num_ones = num_ones + (sout & 0x01);
+                sout = sout << 1;
+            }
+
             let stop_bit : u16 = 1 << 9;
-            let parity_bit : u16 = if util::compute_parity(byte) {
+            let parity_bit : u16 = if num_ones % 2 == 0 {
                 1 << 8
             } else {
                 0

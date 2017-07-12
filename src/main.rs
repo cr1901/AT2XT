@@ -15,6 +15,9 @@ use volatile_register::RW;
 extern crate msp430;
 use msp430::interrupt::{enable, free};
 
+extern crate bit_reverse;
+use bit_reverse::ParallelReverse;
+
 mod keyfsm;
 use keyfsm::{Cmd, ProcReply, Fsm};
 
@@ -25,8 +28,6 @@ use keybuffer::{KeycodeBuffer, KeyIn, KeyOut};
 
 mod driver;
 use driver::KeyboardPins;
-
-mod util;
 
 
 global_asm!(r#"
@@ -199,7 +200,7 @@ pub extern "C" fn main() -> ! {
 
                         bits_in = bits_in & !(0x4000 + 0x0001); // Mask out start/stop bit.
                         bits_in = bits_in >> 2; // Remove stop bit and parity bit (FIXME: Check parity).
-                        ProcReply::GrabbedKey(util::reverse_bits(bits_in as u8))
+                        ProcReply::GrabbedKey((bits_in as u8).swap_bits())
                     }
                 }
             },
