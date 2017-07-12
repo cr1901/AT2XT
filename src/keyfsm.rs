@@ -1,9 +1,17 @@
 use ::keymap;
 
+/* #[derive(Debug)]
+pub enum Leds {
+    CapsLock,
+    NumLock,
+    ScrollLock,
+} */
+
 #[derive(Debug)]
 pub enum Cmd {
     WaitForKey,
     ClearBuffer, // If Reset Occurs.
+    ToggleLed(u8),
     SendXTKey(u8),
 }
 
@@ -20,6 +28,7 @@ pub enum ProcReply {
     GrabbedKey(u8),
     SentKey(u8),
     ClearedBuffer,
+    LedToggled(u8),
     KeyboardReset,
     //SentEcho,
 }
@@ -37,6 +46,7 @@ enum state {
     PossibleBreakCode,
     KnownBreakCode(u8),
     UnmodifiedKey(u8),
+    ToggleLedFirst(u8),
     // InPause(u8), // Number of keycodes in pause left to handle- alternate impl.
     Inconsistent,
     ExpectingBufferClear,
@@ -44,12 +54,13 @@ enum state {
 
 pub struct Fsm {
     curr_state : state,
-    expecting_pause : bool
+    expecting_pause : bool,
+    led_mask : u8
 }
 
 impl Fsm {
     pub fn start() -> Fsm {
-        Fsm { curr_state : state::NotInKey, expecting_pause : false }
+        Fsm { curr_state : state::NotInKey, expecting_pause : false, led_mask : 0 }
     }
 
     pub fn run(&mut self, curr_reply : &ProcReply) -> Result<Cmd, Cmd> {
@@ -61,6 +72,14 @@ impl Fsm {
             &state::PossibleBreakCode => { Ok(Cmd::WaitForKey) },
             &state::KnownBreakCode(b) => { Ok(Cmd::SendXTKey(keymap::to_xt(b) | 0x80)) },
             &state::UnmodifiedKey(u) => { Ok(Cmd::SendXTKey(u)) },
+            &state::ToggleLedFirst(l) => {
+                match l {
+                    0x7e => { Ok(Cmd::ToggleLed(self.led_mask ^ 0x01)) }, // Scroll
+                    0x77 => { Ok(Cmd::ToggleLed(self.led_mask ^ 0x02)) }, // Num
+                    0x58 => { Ok(Cmd::ToggleLed(self.led_mask ^ 0x04)) }, // Caps
+                    _ => { Err(Cmd::WaitForKey) }
+                }
+            }
             &state::ExpectingBufferClear => { Ok(Cmd::ClearBuffer) }
             &state::Inconsistent => { Err(Cmd::WaitForKey) }
         };
@@ -69,7 +88,7 @@ impl Fsm {
         next_cmd
     }
 
-    fn next_state(&self, curr_reply : &ProcReply) -> Result<state, state> {
+    fn next_state(&mut self, curr_reply : &ProcReply) -> Result<state, state> {
         match (&self.curr_state, curr_reply) {
             (_, &ProcReply::KeyboardReset) => { Ok(state::ExpectingBufferClear) },
             (&state::NotInKey, &ProcReply::NothingToDo) => { Ok(state::NotInKey) },
@@ -91,12 +110,19 @@ impl Fsm {
             (&state::SimpleKey(_), &ProcReply::SentKey(_)) => { Ok(state::NotInKey) },
             (&state::PossibleBreakCode, &ProcReply::GrabbedKey(k)) => {
                 match k {
-                    // LEDs => state::SetLED()
+                    // LEDs => state::ToggleLed()
+                    0x7e => { Ok(state::ToggleLedFirst(k)) },
+                    0x77 => { Ok(state::ToggleLedFirst(k)) },
+                    0x58 => { Ok(state::ToggleLedFirst(k)) },
                     _ => { Ok(state::KnownBreakCode(k)) }
                 }
             },
             (&state::KnownBreakCode(_), &ProcReply::SentKey(_)) => { Ok(state::NotInKey) },
             (&state::UnmodifiedKey(_), &ProcReply::SentKey(_)) => { Ok(state::NotInKey) },
+            (&state::ToggleLedFirst(l), &ProcReply::LedToggled(m)) => {
+                self.led_mask = m;
+                Ok(state::KnownBreakCode(l))
+            },
             (&state::ExpectingBufferClear, &ProcReply::ClearedBuffer) => { Ok(state::NotInKey) },
             (_, _) => { Err(state::Inconsistent) },
 

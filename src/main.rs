@@ -170,6 +170,10 @@ pub extern "C" fn main() -> ! {
                 });
                 ProcReply::ClearedBuffer
             },
+            Cmd::ToggleLed(m) => {
+                toggle_LEDs(m);
+                ProcReply::LedToggled(m)
+            }
             Cmd::SendXTKey(k) => {
                 send_byte_to_pc(k);
                 ProcReply::SentKey(k)
@@ -299,6 +303,13 @@ fn send_byte_to_at_keyboard(mut byte : u8) -> () {
         critical_section(|cs| { HOST_MODE = false; })
     }
 }
+
+fn toggle_LEDs(mask : u8) -> () {
+    send_byte_to_at_keyboard(0xED);
+    unsafe { delay(5000); }
+    send_byte_to_at_keyboard(mask);
+}
+
 
 unsafe fn delay(n: u16) {
     asm!(r#"
