@@ -102,7 +102,10 @@ impl Fsm {
 
                     0xf0 => { Ok(state::PossibleBreakCode) },
                     0xe0 => { Ok(state::UnmodifiedKey(k)) },
-                    // 0xe1 => { Ok(state::UnmodifiedKey) },
+                    0xe1 => {
+                        self.expecting_pause = true;
+                        Ok(state::UnmodifiedKey(k))
+                    },
 
                     _ => { Ok(state::SimpleKey(k)) }
                 }
@@ -112,7 +115,13 @@ impl Fsm {
                 match k {
                     // LEDs => state::ToggleLed()
                     0x7e => { Ok(state::ToggleLedFirst(k)) },
-                    0x77 => { Ok(state::ToggleLedFirst(k)) },
+                    0x77 => { if self.expecting_pause {
+                                self.expecting_pause = false;
+                                Ok(state::KnownBreakCode(k))
+                            } else {
+                                Ok(state::ToggleLedFirst(k))
+                            }
+                    },
                     0x58 => { Ok(state::ToggleLedFirst(k)) },
                     _ => { Ok(state::KnownBreakCode(k)) }
                 }
