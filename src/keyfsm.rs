@@ -82,12 +82,17 @@ impl Fsm {
                     0xfe => { Ok(state::NotInKey) },
                     0xee => { Ok(state::NotInKey) },
 
-                    0xf0 => { Ok(state::PossibleBreakCode) },
+                    0xf0 => {
+                        panic!(); // This doesn't!
+                        Ok(state::PossibleBreakCode)
+                    },
 
                     //0xe0 => { Ok(state::UnmodifiedKey) },
                     //0xe1 => { Ok(state::UnmodifiedKey) },
 
-                    _ => { Ok(state::SimpleKey(k)) }
+                    _ => {
+                        // panic!(); // This panics!
+                        Ok(state::SimpleKey(k)) }
                 }
             },
             (&state::SimpleKey(_), &ProcReply::SentKey(_)) => { Ok(state::NotInKey) },
