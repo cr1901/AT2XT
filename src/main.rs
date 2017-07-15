@@ -300,7 +300,7 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
     // FIXME: Truly unsafe until I create a mutex later. Data race can occur (but unlikely, for
     // the sake of testing).
     while free(|cs| {
-        DEVICE_ACK.borrow(cs).get()
+        !DEVICE_ACK.borrow(cs).get()
     }) { }
 
     free(|cs| {
