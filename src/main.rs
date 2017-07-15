@@ -9,6 +9,9 @@
 
 use core::cell::Cell;
 
+extern crate r0;
+use r0::{zero_bss, init_data};
+
 extern crate bare_metal;
 use bare_metal::{Mutex};
 
@@ -113,6 +116,16 @@ extern "C" {
     // TACCTL0
 }
 
+extern "C" {
+    static mut __bssstart: u16;
+    static mut __bssend: u16;
+
+    static mut __datastart: u16;
+    static mut __dataend: u16;
+
+    static __romdatastart: u16;
+}
+
 static mut IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
 static mut KEY_IN : KeyIn = KeyIn::new();
 static mut KEY_OUT : KeyOut = KeyOut::new();
@@ -123,22 +136,19 @@ static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 #[no_mangle]
 pub extern "C" fn main() -> ! {
     unsafe {
+        init_data(&mut __datastart, &mut __dataend, &__romdatastart);
+        //zero_bss(&mut __bssstart, &mut __bssend);
         WDTCTL.write(0x5A00 + 0x80); // WDTPW + WDTHOLD
     }
 
     free(|cs| {
         KEYBOARD_PINS.idle(&cs); // FIXME: Can we make this part of new()?
         unsafe {
-            KEY_OUT.clear(&cs); // Currently, no support for DATA section, so what should be a const fn
-            // to initialize KEY_OUT buffer to empty (pos > 10, i.e. nonzero) must be done
-            // manually.
-            // Upon further bug flushing: All const fns do not currently work; assumes runtime
+            // .bss needs to be set manually. Assumes runtime
             // support which I do not currently have.
             IN_BUFFER.flush(&cs);
             KEY_IN.clear(&cs);
         }
-        HOST_MODE.borrow(cs).set(false);
-        DEVICE_ACK.borrow(cs).set(false);
     });
 
     unsafe {

@@ -7,6 +7,7 @@ authors = ["William D. Jones <thor0505@comcast.net>"]
 [dependencies]
 volatile-register = "0.1.2"
 bare-metal = "0.1.0"
+r0 = "0.2.1"
 
 [dependencies.bit_reverse]
 version = "0.1.7"
