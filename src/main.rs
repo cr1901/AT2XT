@@ -137,18 +137,12 @@ static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 pub extern "C" fn main() -> ! {
     unsafe {
         init_data(&mut __datastart, &mut __dataend, &__romdatastart);
-        //zero_bss(&mut __bssstart, &mut __bssend);
+        zero_bss(&mut __bssstart, &mut __bssend);
         WDTCTL.write(0x5A00 + 0x80); // WDTPW + WDTHOLD
     }
 
     free(|cs| {
         KEYBOARD_PINS.idle(&cs); // FIXME: Can we make this part of new()?
-        unsafe {
-            // .bss needs to be set manually. Assumes runtime
-            // support which I do not currently have.
-            IN_BUFFER.flush(&cs);
-            KEY_IN.clear(&cs);
-        }
     });
 
     unsafe {
