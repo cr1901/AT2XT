@@ -85,25 +85,25 @@ impl Fsm {
         Fsm { curr_state : State::NotInKey, expecting_pause : false, led_mask : 0 }
     }
 
-    pub fn run(&mut self, curr_reply : &ProcReply) -> Cmd {
+    pub fn run(&mut self, curr_reply : &ProcReply) -> Result<Cmd, ()> {
         let next_state = self.next_state(curr_reply);
 
         let next_cmd = match &next_state {
-            &State::NotInKey => { Cmd::WaitForKey },
-            &State::SimpleKey(k) => { Cmd::SendXTKey(keymap::to_xt(k)) },
-            &State::PossibleBreakCode => { Cmd::WaitForKey },
-            &State::KnownBreakCode(b) => { Cmd::SendXTKey(keymap::to_xt(b) | 0x80) },
-            &State::UnmodifiedKey(u) => { Cmd::SendXTKey(u) },
+            &State::NotInKey => { Ok(Cmd::WaitForKey) },
+            &State::SimpleKey(k) => { Ok(Cmd::SendXTKey(keymap::to_xt(k))) },
+            &State::PossibleBreakCode => { Ok(Cmd::WaitForKey) },
+            &State::KnownBreakCode(b) => { Ok(Cmd::SendXTKey(keymap::to_xt(b) | 0x80)) },
+            &State::UnmodifiedKey(u) => { Ok(Cmd::SendXTKey(u)) },
             &State::ToggleLedFirst(l) => {
                 match l {
-                    0x7e => { Cmd::ToggleLed(self.led_mask ^ 0x01) }, // Scroll
-                    0x77 => { Cmd::ToggleLed(self.led_mask ^ 0x02) }, // Num
-                    0x58 => { Cmd::ToggleLed(self.led_mask ^ 0x04) }, // Caps
-                    _ => { panic!() }
+                    0x7e => { Ok(Cmd::ToggleLed(self.led_mask ^ 0x01)) }, // Scroll
+                    0x77 => { Ok(Cmd::ToggleLed(self.led_mask ^ 0x02)) }, // Num
+                    0x58 => { Ok(Cmd::ToggleLed(self.led_mask ^ 0x04)) }, // Caps
+                    _ => { Err(()) }
                 }
             }
-            &State::ExpectingBufferClear => { Cmd::ClearBuffer }
-            &State::Inconsistent => { panic!() }
+            &State::ExpectingBufferClear => { Ok(Cmd::ClearBuffer) }
+            &State::Inconsistent => { Err(()) }
         };
 
         self.curr_state = next_state;

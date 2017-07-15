@@ -165,7 +165,7 @@ pub extern "C" fn main() -> ! {
 
     'get_command: loop {
         // Run state machine/send reply. Receive new cmd.
-        loop_cmd = fsm_driver.run(&loop_reply);
+        loop_cmd = fsm_driver.run(&loop_reply).unwrap();
 
         loop_reply = match loop_cmd {
             Cmd::ClearBuffer => {
