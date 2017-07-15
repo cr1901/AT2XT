@@ -89,21 +89,24 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
             KEYBOARD_PINS.clear_at_clk_int(&cs);
         } else {
             let full : bool;
+            let mut key_in = KEY_IN.borrow(cs).get();
 
             // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
             // sync for nested interrupts while not giving up safety?
             // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-            KEY_IN.shift_in(KEYBOARD_PINS.at_data.is_set(), &cs);
-            full = KEY_IN.is_full();
+            key_in.shift_in(KEYBOARD_PINS.at_data.is_set());
+            full = key_in.is_full();
 
             if full {
                 KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
 
-                IN_BUFFER.put(KEY_IN.take(&cs).unwrap(), &cs);
-                KEY_IN.clear(&cs);
+                IN_BUFFER.put(key_in.take().unwrap(), &cs);
+                key_in.clear();
 
                 KEYBOARD_PINS.at_idle(&cs);
             }
+
+            KEY_IN.borrow(cs).set(key_in);
             KEYBOARD_PINS.clear_at_clk_int(&cs);
         }
     });
@@ -129,7 +132,7 @@ extern "C" {
 }
 
 static mut IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
-static mut KEY_IN : KeyIn = KeyIn::new();
+static KEY_IN : Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
 static KEY_OUT : Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
 static HOST_MODE : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static DEVICE_ACK : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));

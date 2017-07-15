@@ -46,6 +46,7 @@ impl KeycodeBuffer {
 }
 
 
+#[derive(Clone, Copy)]
 pub struct KeyIn {
     pos : u8,
     contents : u16,
@@ -63,14 +64,12 @@ impl KeyIn {
         self.pos >= 11
     }
 
-    pub fn clear(&mut self, ctx : &CriticalSection) {
-        let _ = ctx;
+    pub fn clear(&mut self) {
         self.pos = 0;
         self.contents = 0;
     }
 
-    pub fn shift_in(&mut self, bit : bool, ctx : &CriticalSection) -> () {
-        let _ = ctx;
+    pub fn shift_in(&mut self, bit : bool) -> () {
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         let cast_bit : u16 = if bit {
                 1
@@ -81,8 +80,7 @@ impl KeyIn {
         self.pos = self.pos + 1;
     }
 
-    pub fn take(&mut self, ctx : &CriticalSection) -> Option<u16> {
-        let _ = ctx;
+    pub fn take(&mut self) -> Option<u16> {
         if !self.is_full() {
             None
         } else {
