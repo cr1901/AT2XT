@@ -85,77 +85,77 @@ impl Fsm {
         Fsm { curr_state : State::NotInKey, expecting_pause : false, led_mask : 0 }
     }
 
-    pub fn run(&mut self, curr_reply : &ProcReply) -> Result<Cmd, Cmd> {
-        let next_state = self.next_state(curr_reply).unwrap();
+    pub fn run(&mut self, curr_reply : &ProcReply) -> Cmd {
+        let next_state = self.next_state(curr_reply);
 
         let next_cmd = match &next_state {
-            &State::NotInKey => { Ok(Cmd::WaitForKey) },
-            &State::SimpleKey(k) => { Ok(Cmd::SendXTKey(keymap::to_xt(k))) },
-            &State::PossibleBreakCode => { Ok(Cmd::WaitForKey) },
-            &State::KnownBreakCode(b) => { Ok(Cmd::SendXTKey(keymap::to_xt(b) | 0x80)) },
-            &State::UnmodifiedKey(u) => { Ok(Cmd::SendXTKey(u)) },
+            &State::NotInKey => { Cmd::WaitForKey },
+            &State::SimpleKey(k) => { Cmd::SendXTKey(keymap::to_xt(k)) },
+            &State::PossibleBreakCode => { Cmd::WaitForKey },
+            &State::KnownBreakCode(b) => { Cmd::SendXTKey(keymap::to_xt(b) | 0x80) },
+            &State::UnmodifiedKey(u) => { Cmd::SendXTKey(u) },
             &State::ToggleLedFirst(l) => {
                 match l {
-                    0x7e => { Ok(Cmd::ToggleLed(self.led_mask ^ 0x01)) }, // Scroll
-                    0x77 => { Ok(Cmd::ToggleLed(self.led_mask ^ 0x02)) }, // Num
-                    0x58 => { Ok(Cmd::ToggleLed(self.led_mask ^ 0x04)) }, // Caps
-                    _ => { Err(Cmd::WaitForKey) }
+                    0x7e => { Cmd::ToggleLed(self.led_mask ^ 0x01) }, // Scroll
+                    0x77 => { Cmd::ToggleLed(self.led_mask ^ 0x02) }, // Num
+                    0x58 => { Cmd::ToggleLed(self.led_mask ^ 0x04) }, // Caps
+                    _ => { panic!() }
                 }
             }
-            &State::ExpectingBufferClear => { Ok(Cmd::ClearBuffer) }
-            &State::Inconsistent => { Err(Cmd::WaitForKey) }
+            &State::ExpectingBufferClear => { Cmd::ClearBuffer }
+            &State::Inconsistent => { panic!() }
         };
 
         self.curr_state = next_state;
         next_cmd
     }
 
-    fn next_state(&mut self, curr_reply : &ProcReply) -> Result<State, State> {
+    fn next_state(&mut self, curr_reply : &ProcReply) -> State {
         match (&self.curr_state, curr_reply) {
-            (_, &ProcReply::KeyboardReset) => { Ok(State::ExpectingBufferClear) },
-            (&State::NotInKey, &ProcReply::NothingToDo) => { Ok(State::NotInKey) },
+            (_, &ProcReply::KeyboardReset) => { State::ExpectingBufferClear },
+            (&State::NotInKey, &ProcReply::NothingToDo) => { State::NotInKey },
             (&State::NotInKey, &ProcReply::GrabbedKey(k)) => {
                 match k {
-                    0xaa => { Ok(State::NotInKey) },
+                    0xaa => { State::NotInKey },
                     // TODO: Actually, these should never be sent unprompted.
-                    0xfa => { Ok(State::NotInKey) },
-                    0xfe => { Ok(State::NotInKey) },
-                    0xee => { Ok(State::NotInKey) },
+                    0xfa => { State::NotInKey },
+                    0xfe => { State::NotInKey },
+                    0xee => { State::NotInKey },
 
-                    0xf0 => { Ok(State::PossibleBreakCode) },
-                    0xe0 => { Ok(State::UnmodifiedKey(k)) },
+                    0xf0 => { State::PossibleBreakCode },
+                    0xe0 => { State::UnmodifiedKey(k) },
                     0xe1 => {
                         self.expecting_pause = true;
-                        Ok(State::UnmodifiedKey(k))
+                        State::UnmodifiedKey(k)
                     },
 
-                    _ => { Ok(State::SimpleKey(k)) }
+                    _ => { State::SimpleKey(k) }
                 }
             },
-            (&State::SimpleKey(_), &ProcReply::SentKey(_)) => { Ok(State::NotInKey) },
+            (&State::SimpleKey(_), &ProcReply::SentKey(_)) => { State::NotInKey },
             (&State::PossibleBreakCode, &ProcReply::GrabbedKey(k)) => {
                 match k {
                     // LEDs => State::ToggleLed()
-                    0x7e => { Ok(State::ToggleLedFirst(k)) },
+                    0x7e => { State::ToggleLedFirst(k) },
                     0x77 => { if self.expecting_pause {
                                 self.expecting_pause = false;
-                                Ok(State::KnownBreakCode(k))
+                                State::KnownBreakCode(k)
                             } else {
-                                Ok(State::ToggleLedFirst(k))
+                                State::ToggleLedFirst(k)
                             }
                     },
-                    0x58 => { Ok(State::ToggleLedFirst(k)) },
-                    _ => { Ok(State::KnownBreakCode(k)) }
+                    0x58 => { State::ToggleLedFirst(k) },
+                    _ => { State::KnownBreakCode(k) }
                 }
             },
-            (&State::KnownBreakCode(_), &ProcReply::SentKey(_)) => { Ok(State::NotInKey) },
-            (&State::UnmodifiedKey(_), &ProcReply::SentKey(_)) => { Ok(State::NotInKey) },
+            (&State::KnownBreakCode(_), &ProcReply::SentKey(_)) => { State::NotInKey },
+            (&State::UnmodifiedKey(_), &ProcReply::SentKey(_)) => { State::NotInKey },
             (&State::ToggleLedFirst(l), &ProcReply::LedToggled(m)) => {
                 self.led_mask = m;
-                Ok(State::KnownBreakCode(l))
+                State::KnownBreakCode(l)
             },
-            (&State::ExpectingBufferClear, &ProcReply::ClearedBuffer) => { Ok(State::NotInKey) },
-            (_, _) => { Err(State::Inconsistent) },
+            (&State::ExpectingBufferClear, &ProcReply::ClearedBuffer) => { State::NotInKey },
+            (_, _) => { State::Inconsistent },
 
 
             /* (NotInKey(_), NothingToDo) => { Ok(NotInKey) },
