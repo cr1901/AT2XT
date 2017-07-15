@@ -66,24 +66,26 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
     // to be received in order. Just wrap whole block.
     free(|cs| {
         if HOST_MODE.borrow(cs).get() {
-            if !KEY_OUT.is_empty() {
-                if KEY_OUT.shift_out(&cs) {
+            let mut key_out = KEY_OUT.borrow(cs).get();
+            if !key_out.is_empty() {
+                if key_out.shift_out() {
                     KEYBOARD_PINS.at_data.set(&cs);
                 } else{
                     KEYBOARD_PINS.at_data.unset(&cs);
                 }
 
                 // Immediately after sending out the Stop Bit, we should release the lines.
-                if KEY_OUT.is_empty() {
+                if key_out.is_empty() {
                     KEYBOARD_PINS.at_idle(&cs);
                 }
             } else {
                 if KEYBOARD_PINS.at_data.is_unset() {
                     DEVICE_ACK.borrow(cs).set(true);
-                    KEY_OUT.clear(&cs);
+                    key_out.clear();
                 }
             }
 
+            KEY_OUT.borrow(cs).set(key_out);
             KEYBOARD_PINS.clear_at_clk_int(&cs);
         } else {
             let full : bool;
@@ -128,7 +130,7 @@ extern "C" {
 
 static mut IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
 static mut KEY_IN : KeyIn = KeyIn::new();
-static mut KEY_OUT : KeyOut = KeyOut::new();
+static KEY_OUT : Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
 static HOST_MODE : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static DEVICE_ACK : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
@@ -256,11 +258,12 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
 
 fn send_byte_to_at_keyboard(byte : u8) -> () {
     free(|cs| {
-        unsafe {
-            KEY_OUT.put(byte, &cs).unwrap();
-        }   // Safe outside of critical section: As long as HOST_MODE is
-            // not set, it's not possible for the interrupt
-            // context to touch this variable.
+        let mut key_out = KEY_OUT.borrow(cs).get();
+        key_out.put(byte).unwrap();
+        // Safe outside of critical section: As long as HOST_MODE is
+        // not set, it's not possible for the interrupt
+        // context to touch this variable.
+        KEY_OUT.borrow(cs).set(key_out);
         KEYBOARD_PINS.disable_at_clk_int();
     });
 

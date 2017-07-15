@@ -93,6 +93,7 @@ impl KeyIn {
 }
 
 
+#[derive(Clone, Copy)]
 pub struct KeyOut {
     pos : u8,
     contents : u16,
@@ -111,14 +112,12 @@ impl KeyOut {
                      // it's part of keyboard negotiation.
     }
 
-    pub fn clear(&mut self, ctx : &CriticalSection) {
-        let _ = ctx;
+    pub fn clear(&mut self) {
         self.pos = 10;
         self.contents = 0;
     }
 
-    pub fn shift_out(&mut self, ctx : &CriticalSection) -> bool {
-        let _ = ctx;
+    pub fn shift_out(&mut self) -> bool {
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         let cast_bit : bool = (self.contents & 0x01) == 1;
         self.contents = self.contents >> 1;
@@ -126,8 +125,7 @@ impl KeyOut {
         cast_bit
     }
 
-    pub fn put(&mut self, byte : u8, ctx : &CriticalSection) -> Result<(), ()> {
-        let _ = ctx;
+    pub fn put(&mut self, byte : u8) -> Result<(), ()> {
         if !self.is_empty() {
             Err(())
         } else {
