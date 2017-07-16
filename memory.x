@@ -4,5 +4,3 @@ MEMORY
   ROM : ORIGIN = 0xF800, LENGTH = 0x07E0
   VECTORS : ORIGIN = 0xFFE0, LENGTH = 0x20
 }
-
-INCLUDE ldscripts/msp430g2211_symbols.ld
