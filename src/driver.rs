@@ -1,15 +1,12 @@
-use volatile_register::RW;
-use volatile_register::RO;
-
+use msp430g2211;
 use bare_metal::CriticalSection;
 
-extern "C" {
-    static P1IN: RO<u8>;
-    static mut P1IE: RW<u8>;
-    static mut P1IES: RW<u8>;
-    static mut P1IFG: RW<u8>;
-    static mut P1DIR: RW<u8>;
-    static mut P1OUT: RW<u8>;
+macro_rules! set_bits_with_mask {
+    ($r:ident, $w:ident, $m:expr) => { $w.bits($r.bits() | $m) };
+}
+
+macro_rules! clear_bits_with_mask {
+    ($r:ident, $w:ident, $m:expr) => { $w.bits($r.bits() & !$m) };
 }
 
 pub struct KeyboardPins {
@@ -40,53 +37,55 @@ impl KeyboardPins {
     // Pitfall 1: Does globally enable
     pub fn idle(&self, ctx : &CriticalSection)  -> () {
         let _ = ctx;
-        unsafe {
-            P1DIR.write(0x00);
-            P1IFG.modify(|x| x & !self.at_clk.bitmask());
-            P1IES.modify(|x| x | self.at_clk.bitmask());
-            P1IE.modify(|x| x | self.at_clk.bitmask());
-        }
+        let port = unsafe { &*msp430g2211::PORT_1_2.get() };
+        port.p1dir.write(|w| w.bits(0x00));
+        port.p1ifg.modify(|r, w| clear_bits_with_mask!(r, w, self.at_clk.bitmask()));
+        port.p1ies.modify(|r, w| set_bits_with_mask!(r, w, self.at_clk.bitmask()));
+        port.p1ie.modify(|r, w| set_bits_with_mask!(r, w, self.at_clk.bitmask()));
     }
 
     pub fn disable_at_clk_int(&self) -> () {
-        unsafe {
-            P1IE.modify(|x| x & !self.at_clk.bitmask());
-        }
+        let port = unsafe { &*msp430g2211::PORT_1_2.get() };
+        port.p1ie.modify(|r, w| clear_bits_with_mask!(r, w, self.at_clk.bitmask()));
     }
 
     // Unsafe because can be used in contexts where it's assumed pin ints can't occur.
     pub unsafe fn enable_at_clk_int(&self) -> () {
-        P1IE.modify(|x| x | self.at_clk.bitmask());
+        let port = &*msp430g2211::PORT_1_2.get();
+        port.p1ie.modify(|r, w| set_bits_with_mask!(r, w, self.at_clk.bitmask()));
     }
 
     pub fn clear_at_clk_int(&self, ctx : &CriticalSection) -> () {
-        let _ = ctx;
-        unsafe {
-            P1IFG.modify(|x| x & !self.at_clk.bitmask());
-        }
+        let port = msp430g2211::PORT_1_2.borrow(ctx);
+        port.p1ifg.modify(|r, w| clear_bits_with_mask!(r, w, self.at_clk.bitmask()));
     }
 
     pub fn at_idle(&self, ctx : &CriticalSection) -> () {
-        let at_mask : u8 = self.at_clk.bitmask() | self.at_data.bitmask();
+        // XXX: Mutable borrow happens twice if we borrow port first and then call these
+        // fns?
         self.at_clk.set(ctx);
         self.at_data.set(ctx);
-        unsafe {
-            P1DIR.modify(|x| x & !at_mask);
+        {
+            let port = msp430g2211::PORT_1_2.borrow(ctx);
+            let at_mask : u8 = self.at_clk.bitmask() | self.at_data.bitmask();
+            port.p1dir.modify(|r, w| clear_bits_with_mask!(r, w, at_mask));
         }
     }
 
     pub fn at_inhibit(&self, ctx : &CriticalSection) -> () {
-        let at_mask : u8 = self.at_clk.bitmask() | self.at_data.bitmask();
+        // XXX: Mutable borrow happens twice if we borrow port first and then call these
+        // fns?
         self.at_clk.unset(ctx);
         self.at_data.set(ctx);
-        unsafe {
-            P1DIR.modify(|x| x | at_mask);
+        {
+            let port = msp430g2211::PORT_1_2.borrow(ctx);
+            let at_mask : u8 = self.at_clk.bitmask() | self.at_data.bitmask();
+            port.p1dir.modify(|r, w| set_bits_with_mask!(r, w, at_mask));
         }
     }
 
     #[allow(dead_code)]
     pub fn at_send(&self, ctx : &CriticalSection) -> () {
-        let _ = ctx;
         self.at_clk.set(ctx);
         self.at_data.set(ctx);
         self.at_clk.mk_in(ctx);
@@ -95,21 +94,17 @@ impl KeyboardPins {
 
     // Why in japaric's closures access to the pins for an actual write aren't wrapped in unsafe?
     pub fn xt_out(&self, ctx : &CriticalSection) -> () {
-        let _ = ctx;
+        let port = msp430g2211::PORT_1_2.borrow(ctx);
         let xt_mask : u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
-        unsafe {
-            P1OUT.modify(|x| x | xt_mask);
-            P1DIR.modify(|x| x | xt_mask);
-        }
+        port.p1out.modify(|r, w| set_bits_with_mask!(r, w, xt_mask));
+        port.p1dir.modify(|r, w| set_bits_with_mask!(r, w, xt_mask));
     }
 
     pub fn xt_in(&self, ctx : &CriticalSection) -> () {
-        let _ = ctx;
+        let port = msp430g2211::PORT_1_2.borrow(ctx);
         let xt_mask : u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
-        unsafe {
-            P1OUT.modify(|x| x | self.xt_data.bitmask());
-            P1DIR.modify(|x| x & !xt_mask)
-        }
+        port.p1out.modify(|r, w| set_bits_with_mask!(r, w, self.xt_data.bitmask()));
+        port.p1dir.modify(|r, w| clear_bits_with_mask!(r, w, xt_mask));
     }
 }
 
@@ -127,36 +122,36 @@ impl Pin {
         (1 << self.loc)
     }
 
-    // unsafe b/c P1OUT can be modified from another thread w/o synchronization.
     pub fn set(&self, ctx : &CriticalSection) -> () {
-        let _ = ctx;
-        unsafe { P1OUT.modify(|x| x | self.bitmask()) }
+        let port = msp430g2211::PORT_1_2.borrow(ctx);
+        port.p1out.modify(|r, w| set_bits_with_mask!(r, w, self.bitmask()));
     }
 
-    // unsafe b/c P1OUT can be modified from another thread w/o synchronization.
     pub fn unset(&self, ctx : &CriticalSection) -> () {
-        let _ = ctx;
-        unsafe { P1OUT.modify(|x| x & !self.bitmask()); }
+        let port = msp430g2211::PORT_1_2.borrow(ctx);
+        port.p1out.modify(|r, w| clear_bits_with_mask!(r, w, self.bitmask()));
     }
 
     pub fn mk_in(&self, ctx : &CriticalSection) -> () {
-        let _ = ctx;
-        unsafe { P1DIR.modify(|x| x & !self.bitmask()); }
+        let port = msp430g2211::PORT_1_2.borrow(ctx);
+        port.p1dir.modify(|r, w| clear_bits_with_mask!(r, w, self.bitmask()));
     }
 
     #[allow(dead_code)]
     pub fn mk_out(&self, ctx : &CriticalSection) -> () {
-        let _ = ctx;
-        unsafe { P1DIR.modify(|x| x | self.bitmask()); }
+        let port = msp430g2211::PORT_1_2.borrow(ctx);
+        port.p1dir.modify(|r, w| set_bits_with_mask!(r, w, self.bitmask()));
     }
 
 
     // No side effects from reading pins- these fcns are safe.
     pub fn is_set(&self) ->  bool {
-        (unsafe { P1IN.read() } & self.bitmask()) != 0
+        let port = unsafe { &*msp430g2211::PORT_1_2.get() };
+        (port.p1in.read().bits() & self.bitmask()) != 0
     }
 
     pub fn is_unset(&self) -> bool {
-        (unsafe { P1IN.read() } & self.bitmask()) == 0
+        let port = unsafe { &*msp430g2211::PORT_1_2.get() };
+        (port.p1in.read().bits() & self.bitmask()) == 0
     }
 }
