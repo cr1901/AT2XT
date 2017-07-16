@@ -5,5 +5,5 @@ rustflags = [
     "-C", "link-arg=-nostartfiles",
     "-C", "link-arg=-lmul_none",
     "-C", "link-arg=-lc",
-#    "-C", "opt-level=s",
+    "-C", "opt-level=s",
 ]

@@ -19,6 +19,7 @@ extern crate volatile_register;
 use volatile_register::RW;
 
 extern crate msp430;
+use msp430::asm::nop;
 use msp430::interrupt::{enable, free};
 
 extern crate bit_reverse;
@@ -59,9 +60,9 @@ unsafe extern "msp430-interrupt" fn timer0_handler() {
 
 #[used]
 #[link_section = "__interrupt_vector_port1"]
-static PORTA_VECTOR: unsafe extern "msp430-interrupt" fn() = porta_handler;
+static PORTA_VECTOR: extern "msp430-interrupt" fn() = porta_handler;
 
-unsafe extern "msp430-interrupt" fn porta_handler() {
+extern "msp430-interrupt" fn porta_handler() {
     // Interrupts already disabled, and doesn't make sense to nest them, since bits need
     // to be received in order. Just wrap whole block.
     free(|cs| {
@@ -188,30 +189,28 @@ pub extern "C" fn main() -> ! {
                 // the keyboard to send data to the micro at the same time. To keep control flow simple,
                 // the micro will only respond to host PC acknowledge requests if its idle.
                 let mut xt_reset : bool = false;
-                unsafe {
-                    'idle: while free(|cs| { IN_BUFFER.borrow(cs).borrow().is_empty() }) {
-                        // If host computer wants to reset
-                        if KEYBOARD_PINS.xt_sense.is_unset() {
-                            send_byte_to_at_keyboard(0xFF);
-                            send_byte_to_pc(0xAA);
-                            xt_reset = true;
-                            break;
-                        }
+                'idle: while free(|cs| { IN_BUFFER.borrow(cs).borrow().is_empty() }) {
+                    // If host computer wants to reset
+                    if KEYBOARD_PINS.xt_sense.is_unset() {
+                        send_byte_to_at_keyboard(0xFF);
+                        send_byte_to_pc(0xAA);
+                        xt_reset = true;
+                        break;
                     }
+                }
 
-                    if xt_reset {
-                        ProcReply::KeyboardReset
-                    } else {
-                        let mut bits_in = free(|cs|{
-                            IN_BUFFER.borrow(cs)
-                                .borrow_mut()
-                                .take().unwrap()
-                        });
+                if xt_reset {
+                    ProcReply::KeyboardReset
+                } else {
+                    let mut bits_in = free(|cs|{
+                        IN_BUFFER.borrow(cs)
+                            .borrow_mut()
+                            .take().unwrap()
+                    });
 
-                        bits_in = bits_in & !(0x4000 + 0x0001); // Mask out start/stop bit.
-                        bits_in = bits_in >> 2; // Remove stop bit and parity bit (FIXME: Check parity).
-                        ProcReply::GrabbedKey((bits_in as u8).swap_bits())
-                    }
+                    bits_in = bits_in & !(0x4000 + 0x0001); // Mask out start/stop bit.
+                    bits_in = bits_in >> 2; // Remove stop bit and parity bit (FIXME: Check parity).
+                    ProcReply::GrabbedKey((bits_in as u8).swap_bits())
                 }
             },
 
@@ -230,7 +229,7 @@ pub fn send_xt_bit(bit : u8) -> () {
         KEYBOARD_PINS.xt_clk.unset(&cs);
     });
 
-    unsafe { delay(88); } // 55 microseconds at 1.6 MHz
+    delay(88); // 55 microseconds at 1.6 MHz
 
     free(|cs| {
         KEYBOARD_PINS.xt_clk.set(&cs);
@@ -282,13 +281,13 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
         KEYBOARD_PINS.at_inhibit(&cs);
     });
 
-    unsafe { delay(160); } // 100 microseconds
+    delay(160); // 100 microseconds
 
     free(|cs| {
         KEYBOARD_PINS.at_data.unset(cs);
     });
 
-    unsafe { delay(53); } // 33 microseconds
+    delay(53); // 33 microseconds
 
     free(|cs| {
         KEYBOARD_PINS.at_clk.set(cs);
@@ -314,18 +313,21 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
 
 fn toggle_leds(mask : u8) -> () {
     send_byte_to_at_keyboard(0xED);
-    unsafe { delay(5000); }
+    delay(5000);
     send_byte_to_at_keyboard(mask);
 }
 
 
-unsafe fn delay(n: u16) {
-    asm!(r#"
+fn delay(n: u16) {
+    unsafe {
+        asm!(r#"
 1:
     dec $0
     jne 1b
     "# :: "{r12}"(n) : "r12" : "volatile");
+    }
 }
+
 
 #[used]
 #[no_mangle]
@@ -333,6 +335,6 @@ unsafe fn delay(n: u16) {
 #[allow(private_no_mangle_fns)]
 extern "C" fn panic_fmt() -> ! {
     loop {
-        unsafe { asm!("nop" ::: "memory" : "volatile"); }
+        nop();
     }
 }

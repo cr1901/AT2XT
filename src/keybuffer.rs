@@ -1,5 +1,3 @@
-use bare_metal::CriticalSection;
-
 pub struct KeycodeBuffer {
     head : u8,
     tail : u8,
