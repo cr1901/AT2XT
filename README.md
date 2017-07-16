@@ -16,6 +16,7 @@ in the Rust version, the keyhandling Finite State Machine (FSM) returns
 immediately and I/O processing occurs in the main loop. In the C version the
 FSM _is_ the main loop, and I/O processing is embedded.
 
+### Prerequisites
 This source requires the Rust nightly compiler for the foreseeable future.
 To obtain the nightly compiler and relevant dependencies:
 
@@ -32,12 +33,21 @@ enabled in Rust nightly. Switch to the nightly compiler by running:
 `xargo` program allows a developer to maintain multiple `libcores` for
 multiple archs simultaneously: `cargo install xargo`.
 
-4. The current command to build is:
+4. Obtain `msp430-elf-gcc` from TI at the bottom of
+[this page](http://www.ti.com/tool/msp430-gcc-opensource), and make sure the
+toolchain's bin directory is visible to Rust. As I understand it, the GCC
+toolchain is required because Rust is hardcoded to call the compiler driver
+to assemble if LLVM is not emitting object files itself; LLVM doesn't emit
+objects for MSP430 as of this writing. Furthermore, binutils will
+be required for the foreseeable future for the linker.
+
+### Building
+The current command to build is:
 `xargo build --release --target=msp430-none-elf`. This command has changed
 over time, so I provide a Makefile as well: `make` to build, and `make prog`
 to program using a Launchpad, `mspdebug`, and Spy-Bi-Wire connections.
 
-
+### Tags/Comparing Versions
 Tags to previous versions are included to compare the overhead of adding
 various abstractions and making the source code look more like an idiomatic
 hosted Rust program. Some considerations when comparing versions:
@@ -61,12 +71,18 @@ the `legacy-src` directory.
 Currently, it is up to the user to set up their toolchain to compile the files
 for programming an MSP430G2211 or compatible 14-pin DIP MSP430. I recommend the
 former, if only because MSP430 is already overkill for this project and G2211
-is a low-end model :P. However, I . When the C source was written, TI expected users to compile with Code Composer Studio (CCS). Today, a Makefile generic to all OSes and requiring only a command line should work, and will be available soon. Compile using -O2 or better.
+is a low-end model :P. However, I . When the C source was written, TI expected
+users to compile with Code Composer Studio (CCS). Today, a Makefile generic to
+all OSes and requiring only a command line should work, and will be available
+soon. Compile using -O2 or better.
 
 The C source code itself should be easy to port to other microcontrollers,
-except for the use of a __delay_cycles() intrinsic. I had no choice here, as
+except for the use of a `__delay_cycles()` intrinsic. I had no choice here, as
 using the timer for a software delay can lock the keyboard FSM to a single
 state.
 
+## Schematics
 Schematics are provided in DIPTrace ASCII format. PCB is provided using Gerber
 Files and an N/C Drill File.
+
+It is my intention sometime soon to redo the schematic using KiCAD.
