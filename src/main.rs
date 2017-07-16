@@ -10,7 +10,6 @@ extern crate bare_metal;
 use bare_metal::{Mutex};
 
 extern crate volatile_register;
-use volatile_register::RW;
 
 extern crate msp430;
 use msp430::interrupt::{enable, free};
@@ -90,15 +89,6 @@ fn porta_handler() {
     });
 }
 
-extern "C" {
-    static mut WDTCTL: RW<u16>;
-    static mut BCSCTL1: RW<u8>;
-    static mut BCSCTL2: RW<u8>;
-    // TACCR0
-    // TACTL
-    // TACCTL0
-}
-
 static IN_BUFFER : Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
 static KEY_IN : Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
 static KEY_OUT : Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
@@ -109,7 +99,10 @@ static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 #[no_mangle]
 pub extern "C" fn main() -> ! {
     unsafe {
-        WDTCTL.write(0x5A00 + 0x80); // WDTPW + WDTHOLD
+        let wdt = &*msp430g2211::WATCHDOG_TIMER.get();
+        wdt.wdtctl.write(|w| w.bits(0x5A00) // password
+            .wdthold().set_bit()
+        );
     }
 
     free(|cs| {
@@ -117,8 +110,10 @@ pub extern "C" fn main() -> ! {
     });
 
     unsafe {
-        BCSCTL1.write(0x88); // XT2 off, Range Select 7.
-        BCSCTL2.write(0x04); // Divide submain clock by 4.
+        let clock = &*msp430g2211::SYSTEM_CLOCK.get();
+        clock.bcsctl1.write(|w| w.xt2off().set_bit()
+            .rsel3().set_bit()); // XT2 off, Range Select 7.
+        clock.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4.
         enable(); // Enable interrupts.
     }
 
