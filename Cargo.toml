@@ -1,5 +1,5 @@
 [package]
-build = "build.rs"
+# build = "build.rs"
 name = "at2xt"
 version = "1.1.0"
 authors = ["William D. Jones <thor0505@comcast.net>"]
@@ -15,6 +15,11 @@ default_features = false
 
 [dependencies.msp430]
 git = "https://github.com/pftbest/msp430"
+
+[dependencies.msp430-rt]
+git = "https://github.com/pftbest/msp430-rt"
+features = ["abort-on-panic"]
+version = "0.1.0"
 
 [profile.dev]
 debug = true

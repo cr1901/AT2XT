@@ -22,6 +22,8 @@ extern crate msp430;
 use msp430::asm::nop;
 use msp430::interrupt::{enable, free};
 
+extern crate msp430_rt;
+
 extern crate bit_reverse;
 use bit_reverse::ParallelReverse;
 
@@ -34,27 +36,31 @@ use keybuffer::{KeycodeBuffer, KeyIn, KeyOut};
 mod driver;
 use driver::KeyboardPins;
 
-
-global_asm!(r#"
-    .globl reset_handler
-reset_handler:
-    mov #__stack, r1
-    br #main
-"#);
-
 #[used]
-#[link_section = "__interrupt_vector_reset"]
-static RESET_VECTOR: unsafe extern "msp430-interrupt" fn() = reset_handler;
+#[link_section = ".vector_table.interrupts"]
+static INTERRUPTS: [extern "msp430-interrupt" fn(); 15] = [
+    default_handler,
+    default_handler,
+    porta_handler,
+    default_handler,
+    default_handler,
+    default_handler,
+    default_handler,
+    default_handler,
+    default_handler,
+    timer0_handler,
+    default_handler,
+    default_handler,
+    default_handler,
+    default_handler,
+    default_handler
+];
 
-extern "msp430-interrupt" {
-    fn reset_handler();
+extern "msp430-interrupt" fn default_handler() {
+    // you can do something here
 }
 
-#[used]
-#[link_section = "__interrupt_vector_timer0_a0"]
-static TIM0_VECTOR: unsafe extern "msp430-interrupt" fn() = timer0_handler;
-
-unsafe extern "msp430-interrupt" fn timer0_handler() {
+extern "msp430-interrupt" fn timer0_handler() {
     // you can do something here
 }
 
@@ -124,16 +130,6 @@ extern "C" {
     // TACCTL0
 }
 
-extern "C" {
-    static mut __bssstart: u16;
-    static mut __bssend: u16;
-
-    static mut __datastart: u16;
-    static mut __dataend: u16;
-
-    static __romdatastart: u16;
-}
-
 static IN_BUFFER : Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
 static KEY_IN : Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
 static KEY_OUT : Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
@@ -144,8 +140,6 @@ static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 #[no_mangle]
 pub extern "C" fn main() -> ! {
     unsafe {
-        init_data(&mut __datastart, &mut __dataend, &__romdatastart);
-        zero_bss(&mut __bssstart, &mut __bssend);
         WDTCTL.write(0x5A00 + 0x80); // WDTPW + WDTHOLD
     }
 
@@ -172,7 +166,9 @@ pub extern "C" fn main() -> ! {
         loop_reply = match loop_cmd {
             Cmd::ClearBuffer => {
                 free(|cs| {
-                    IN_BUFFER.borrow(cs).borrow_mut().flush();
+                    IN_BUFFER.borrow(cs)
+                        .borrow_mut()
+                        .flush();
                 });
                 ProcReply::ClearedBuffer
             },
@@ -300,8 +296,6 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
         DEVICE_ACK.borrow(cs).set(false);
     });
 
-    // FIXME: Truly unsafe until I create a mutex later. Data race can occur (but unlikely, for
-    // the sake of testing).
     while free(|cs| {
         !DEVICE_ACK.borrow(cs).get()
     }) { }
@@ -325,16 +319,5 @@ fn delay(n: u16) {
     dec $0
     jne 1b
     "# :: "{r12}"(n) : "r12" : "volatile");
-    }
-}
-
-
-#[used]
-#[no_mangle]
-#[lang = "panic_fmt"]
-#[allow(private_no_mangle_fns)]
-extern "C" fn panic_fmt() -> ! {
-    loop {
-        nop();
     }
 }
