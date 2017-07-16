@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(asm)]
-#![feature(used)]
 #![feature(abi_msp430_interrupt)]
 #![feature(const_fn)]
 
@@ -16,10 +15,11 @@ use volatile_register::RW;
 extern crate msp430;
 use msp430::interrupt::{enable, free};
 
-extern crate msp430_rt;
-
 extern crate bit_reverse;
 use bit_reverse::ParallelReverse;
+
+#[macro_use(interrupt)]
+extern crate msp430g2211;
 
 mod keyfsm;
 use keyfsm::{Cmd, ProcReply, Fsm};
@@ -30,39 +30,14 @@ use keybuffer::{KeycodeBuffer, KeyIn, KeyOut};
 mod driver;
 use driver::KeyboardPins;
 
-#[used]
-#[link_section = ".vector_table.interrupts"]
-static INTERRUPTS: [extern "msp430-interrupt" fn(); 15] = [
-    default_handler,
-    default_handler,
-    porta_handler,
-    default_handler,
-    default_handler,
-    default_handler,
-    default_handler,
-    default_handler,
-    default_handler,
-    timer0_handler,
-    default_handler,
-    default_handler,
-    default_handler,
-    default_handler,
-    default_handler
-];
 
-extern "msp430-interrupt" fn default_handler() {
+/* interrupt!(TIMERA0, timer0_handler);
+fn timer0_handler() {
     // you can do something here
-}
+} */
 
-extern "msp430-interrupt" fn timer0_handler() {
-    // you can do something here
-}
-
-#[used]
-#[link_section = "__interrupt_vector_port1"]
-static PORTA_VECTOR: extern "msp430-interrupt" fn() = porta_handler;
-
-extern "msp430-interrupt" fn porta_handler() {
+interrupt!(PORT1, porta_handler);
+fn porta_handler() {
     // Interrupts already disabled, and doesn't make sense to nest them, since bits need
     // to be received in order. Just wrap whole block.
     free(|cs| {

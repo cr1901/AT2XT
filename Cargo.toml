@@ -20,6 +20,10 @@ git = "https://github.com/pftbest/msp430-rt"
 features = ["abort-on-panic"]
 version = "0.1.0"
 
+[dependencies.msp430g2211]
+git = "https://github.com/cr1901/msp430g2211"
+features = ["rt"]
+
 [profile.dev]
 debug = true
 
