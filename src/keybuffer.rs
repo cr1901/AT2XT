@@ -15,27 +15,24 @@ impl KeycodeBuffer {
         }
     }
 
-    pub fn flush(&mut self, ctx : &CriticalSection) -> () {
-        let _ = ctx;
+    pub fn flush(&mut self) -> () {
         self.tail = 0;
         self.head = 0;
     }
 
-    pub fn is_empty(&self, ctx : &CriticalSection) -> bool {
-        let _ = ctx;
+    pub fn is_empty(&self) -> bool {
         (self.head - self.tail == 0)
     }
 
-    pub fn put(&mut self, in_key : u16, ctx : &CriticalSection) -> () {
-        let _ = ctx;
+    pub fn put(&mut self, in_key : u16) -> () {
         // TODO: A full buffer is an abnormal condition worth a panic/reset.
 
         self.contents[self.tail as usize] = in_key;
         self.tail = (self.tail + 1) % 16;
     }
 
-    pub fn take(&mut self, ctx : &CriticalSection) -> Option<u16> {
-        if self.is_empty(ctx) {
+    pub fn take(&mut self) -> Option<u16> {
+        if self.is_empty() {
             None
         } else {
             let out_key : u16 = self.contents[self.head as usize];

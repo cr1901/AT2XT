@@ -7,7 +7,7 @@
 #![feature(abi_msp430_interrupt)]
 #![feature(const_fn)]
 
-use core::cell::Cell;
+use core::cell::{Cell, RefCell};
 
 extern crate r0;
 use r0::{zero_bss, init_data};
@@ -100,7 +100,9 @@ unsafe extern "msp430-interrupt" fn porta_handler() {
             if full {
                 KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
 
-                IN_BUFFER.put(key_in.take().unwrap(), &cs);
+                IN_BUFFER.borrow(cs)
+                    .borrow_mut()
+                    .put(key_in.take().unwrap());
                 key_in.clear();
 
                 KEYBOARD_PINS.at_idle(&cs);
@@ -131,7 +133,7 @@ extern "C" {
     static __romdatastart: u16;
 }
 
-static mut IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
+static IN_BUFFER : Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
 static KEY_IN : Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
 static KEY_OUT : Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
 static HOST_MODE : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
@@ -169,7 +171,7 @@ pub extern "C" fn main() -> ! {
         loop_reply = match loop_cmd {
             Cmd::ClearBuffer => {
                 free(|cs| {
-                    unsafe { IN_BUFFER.flush(&cs); }
+                    IN_BUFFER.borrow(cs).borrow_mut().flush();
                 });
                 ProcReply::ClearedBuffer
             },
@@ -187,7 +189,7 @@ pub extern "C" fn main() -> ! {
                 // the micro will only respond to host PC acknowledge requests if its idle.
                 let mut xt_reset : bool = false;
                 unsafe {
-                    'idle: while free(|cs| { IN_BUFFER.is_empty(&cs) }) {
+                    'idle: while free(|cs| { IN_BUFFER.borrow(cs).borrow().is_empty() }) {
                         // If host computer wants to reset
                         if KEYBOARD_PINS.xt_sense.is_unset() {
                             send_byte_to_at_keyboard(0xFF);
@@ -201,7 +203,9 @@ pub extern "C" fn main() -> ! {
                         ProcReply::KeyboardReset
                     } else {
                         let mut bits_in = free(|cs|{
-                            IN_BUFFER.take(&cs).unwrap()
+                            IN_BUFFER.borrow(cs)
+                                .borrow_mut()
+                                .take().unwrap()
                         });
 
                         bits_in = bits_in & !(0x4000 + 0x0001); // Mask out start/stop bit.
