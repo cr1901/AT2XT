@@ -2,15 +2,10 @@
 #![no_main]
 #![feature(asm)]
 #![feature(used)]
-#![feature(lang_items)]
-#![feature(global_asm)]
 #![feature(abi_msp430_interrupt)]
 #![feature(const_fn)]
 
 use core::cell::{Cell, RefCell};
-
-extern crate r0;
-use r0::{zero_bss, init_data};
 
 extern crate bare_metal;
 use bare_metal::{Mutex};
@@ -19,7 +14,6 @@ extern crate volatile_register;
 use volatile_register::RW;
 
 extern crate msp430;
-use msp430::asm::nop;
 use msp430::interrupt::{enable, free};
 
 extern crate msp430_rt;
@@ -310,7 +304,6 @@ fn toggle_leds(mask : u8) -> () {
     delay(5000);
     send_byte_to_at_keyboard(mask);
 }
-
 
 fn delay(n: u16) {
     unsafe {

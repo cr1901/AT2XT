@@ -11,7 +11,6 @@ mod keymap {
     0x52,0x53,0x50,0x4C,0x4D,0x48,0x01,0x45,0x57,0x4E,0x51,0x4A,0x37,0x49,0x46,0x00,
     0x00,0x00,0x00,0x41];
 
-    #[inline(always)]
     pub fn to_xt(at_in : u8) -> u8 {
         let ptr = &KEYCODE_LUT[0] as * const u8;
         if at_in < 132 {
@@ -22,13 +21,6 @@ mod keymap {
     }
 }
 
-/* #[derive(Debug)]
-pub enum Leds {
-    CapsLock,
-    NumLock,
-    ScrollLock,
-} */
-
 #[derive(Debug)]
 pub enum Cmd {
     WaitForKey,
@@ -36,13 +28,6 @@ pub enum Cmd {
     ToggleLed(u8),
     SendXTKey(u8),
 }
-
-/* impl Cmd {
-    pub fn init() -> Cmd {
-        Cmd::WaitForKey
-    }
-} */
-
 
 pub enum ProcReply {
     // JustInitialized,
@@ -156,11 +141,6 @@ impl Fsm {
             },
             (&State::ExpectingBufferClear, &ProcReply::ClearedBuffer) => { State::NotInKey },
             (_, _) => { State::Inconsistent },
-
-
-            /* (NotInKey(_), NothingToDo) => { Ok(NotInKey) },
-            (NotInKey(_), SentEchoExpectingEcho, */
-            /* (_, _) => { Err(State::Inconsistent) } */
         }
     }
 }
