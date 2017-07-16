@@ -1,4 +1,4 @@
-[target.msp430]
+[target.msp430-none-elf]
 rustflags = [
     "-C", "link-arg=-Tlink.x",
     "-C", "link-arg=-mmcu=msp430g2211",
