@@ -48,7 +48,11 @@ app! {
     device: msp430g2211,
 
     idle: {
-        resources: [PORT_1_2],
+        resources: [KEYBOARD_PINS, PORT_1_2],
+    },
+
+    resources: {
+        KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
     },
 
     tasks: {
@@ -69,7 +73,7 @@ fn timer0_handler() {
 
 
 //task!(PORT1, porta_handler);
-fn porta_handler(r: PORT1::Resources) {
+/* fn porta_handler(r: PORT1::Resources) {
     // Interrupts already disabled, and doesn't make sense to nest them, since bits need
     // to be received in order. Just wrap whole block.
     free(|cs| {
@@ -77,24 +81,24 @@ fn porta_handler(r: PORT1::Resources) {
             let mut key_out = KEY_OUT.borrow(cs).get();
             if !key_out.is_empty() {
                 if key_out.shift_out() {
-                    KEYBOARD_PINS.at_data.set(&cs);
+                    //KEYBOARD_PINS.at_data.set(&cs);
                 } else{
-                    KEYBOARD_PINS.at_data.unset(&cs);
+                    //KEYBOARD_PINS.at_data.unset(&cs);
                 }
 
                 // Immediately after sending out the Stop Bit, we should release the lines.
                 if key_out.is_empty() {
-                    KEYBOARD_PINS.at_idle(&cs);
+                    //KEYBOARD_PINS.at_idle(&cs);
                 }
             } else {
-                if KEYBOARD_PINS.at_data.is_unset() {
+                if //KEYBOARD_PINS.at_data.is_unset() {
                     DEVICE_ACK.borrow(cs).set(true);
                     key_out.clear();
                 }
             }
 
             KEY_OUT.borrow(cs).set(key_out);
-            KEYBOARD_PINS.clear_at_clk_int(&cs);
+            //KEYBOARD_PINS.clear_at_clk_int(&cs);
         } else {
             let full : bool;
             let mut key_in = KEY_IN.borrow(cs).get();
@@ -102,33 +106,31 @@ fn porta_handler(r: PORT1::Resources) {
             // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
             // sync for nested interrupts while not giving up safety?
             // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-            key_in.shift_in(KEYBOARD_PINS.at_data.is_set());
+            key_in.shift_in(//KEYBOARD_PINS.at_data.is_set());
             full = key_in.is_full();
 
             if full {
-                KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
+                //KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
 
                 IN_BUFFER.borrow(cs)
                     .borrow_mut()
                     .put(key_in.take().unwrap());
                 key_in.clear();
 
-                KEYBOARD_PINS.at_idle(&cs);
+                //KEYBOARD_PINS.at_idle(&cs);
             }
 
             KEY_IN.borrow(cs).set(key_in);
-            KEYBOARD_PINS.clear_at_clk_int(&cs);
+            //KEYBOARD_PINS.clear_at_clk_int(&cs);
         }
     });
-}
+} */
 
 static IN_BUFFER : Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
 static KEY_IN : Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
 static KEY_OUT : Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
 static HOST_MODE : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static DEVICE_ACK : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
-static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
-
 
 const AT_CLK: u8 = 1;
 const XT_SENSE: u8 = 1 << 1;
@@ -137,17 +139,14 @@ const XT_DATA: u8 = 1 << 3;
 const AT_DATA: u8 = 1 << 4;
 
 
-fn init(p: init::Peripherals) {
+fn init(p: init::Peripherals, r: init::Resources) {
     p.WATCHDOG_TIMER.wdtctl.write(|w| unsafe {
         const PASSWORD: u16 = 0x5A00;
         w.bits(PASSWORD).wdthold().set_bit()
     });
 
     // Make port idle
-    p.PORT_1_2.p1dir.write(|w| w.bits(0x00));
-    p.PORT_1_2.p1ifg.modify(|r, w| clear_bits_with_mask!(r, w, AT_CLK));
-    p.PORT_1_2.p1ies.modify(|r, w| set_bits_with_mask!(r, w, AT_CLK));
-    p.PORT_1_2.p1ie.modify(|r, w| set_bits_with_mask!(r, w, AT_CLK));
+    r.KEYBOARD_PINS.idle(p.PORT_1_2);
 
     p.SYSTEM_CLOCK.bcsctl1.write(|w| w.xt2off().set_bit()
         .rsel3().set_bit()); // XT2 off, Range Select 7.
@@ -167,18 +166,6 @@ fn idle(r: idle::Resources) -> ! {
 
 #[no_mangle]
 pub extern "C" fn used_to_be_main() -> ! {
-    free(|cs| {
-        KEYBOARD_PINS.idle(&cs); // FIXME: Can we make this part of new()?
-    });
-
-    unsafe {
-        let clock = &*msp430g2211::SYSTEM_CLOCK.get();
-        clock.bcsctl1.write(|w| w.xt2off().set_bit()
-            .rsel3().set_bit()); // XT2 off, Range Select 7.
-        clock.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4.
-        enable(); // Enable interrupts.
-    }
-
     send_byte_to_at_keyboard(0xFF);
 
     let mut loop_cmd : Cmd;
@@ -213,12 +200,12 @@ pub extern "C" fn used_to_be_main() -> ! {
                 let mut xt_reset : bool = false;
                 'idle: while free(|cs| { IN_BUFFER.borrow(cs).borrow().is_empty() }) {
                     // If host computer wants to reset
-                    if KEYBOARD_PINS.xt_sense.is_unset() {
+                    /* if //KEYBOARD_PINS.xt_sense.is_unset() {
                         send_byte_to_at_keyboard(0xFF);
                         send_byte_to_pc(0xAA);
                         xt_reset = true;
                         break;
-                    }
+                    } */
                 }
 
                 if xt_reset {
@@ -243,18 +230,18 @@ pub extern "C" fn used_to_be_main() -> ! {
 pub fn send_xt_bit(bit : u8) -> () {
     free(|cs| {
         if bit == 1 {
-            KEYBOARD_PINS.xt_data.set(&cs);
+            //KEYBOARD_PINS.xt_data.set(&cs);
         } else {
-            KEYBOARD_PINS.xt_data.unset(&cs);
+            //KEYBOARD_PINS.xt_data.unset(&cs);
         }
 
-        KEYBOARD_PINS.xt_clk.unset(&cs);
+        //KEYBOARD_PINS.xt_clk.unset(&cs);
     });
 
     delay(88); // 55 microseconds at 1.6 MHz
 
     free(|cs| {
-        KEYBOARD_PINS.xt_clk.set(&cs);
+        //KEYBOARD_PINS.xt_clk.set(&cs);
     });
 }
 
@@ -263,12 +250,12 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
     // the CLK (reset) and DATA (shift register full) low.
     // Wait for the host to release the lines.
 
-    while KEYBOARD_PINS.xt_clk.is_unset() || KEYBOARD_PINS.xt_data.is_unset() {
+    /* while //KEYBOARD_PINS.xt_clk.is_unset() || //KEYBOARD_PINS.xt_data.is_unset() {
 
-    }
+    } */
 
     free(|cs| {
-        KEYBOARD_PINS.xt_out(&cs);
+        //KEYBOARD_PINS.xt_out(&cs);
     });
 
     send_xt_bit(0);
@@ -280,7 +267,7 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
     }
 
     free(|cs| {
-        KEYBOARD_PINS.xt_in(&cs);
+        //KEYBOARD_PINS.xt_in(&cs);
     });
 }
 
@@ -292,31 +279,31 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
         // not set, it's not possible for the interrupt
         // context to touch this variable.
         KEY_OUT.borrow(cs).set(key_out);
-        KEYBOARD_PINS.disable_at_clk_int();
+        //KEYBOARD_PINS.disable_at_clk_int();
     });
 
-    while KEYBOARD_PINS.at_clk.is_unset() {
+    /* while //KEYBOARD_PINS.at_clk.is_unset() {
 
-    }
+    } */
 
     free(|cs| {
-        KEYBOARD_PINS.at_inhibit(&cs);
+        //KEYBOARD_PINS.at_inhibit(&cs);
     });
 
     delay(160); // 100 microseconds
 
     free(|cs| {
-        KEYBOARD_PINS.at_data.unset(cs);
+        //KEYBOARD_PINS.at_data.unset(cs);
     });
 
     delay(53); // 33 microseconds
 
     free(|cs| {
-        KEYBOARD_PINS.at_clk.set(cs);
-        KEYBOARD_PINS.at_clk.mk_in(cs);
-        KEYBOARD_PINS.clear_at_clk_int(cs);
+        //KEYBOARD_PINS.at_clk.set(cs);
+        //KEYBOARD_PINS.at_clk.mk_in(cs);
+        //KEYBOARD_PINS.clear_at_clk_int(cs);
         unsafe {
-            KEYBOARD_PINS.enable_at_clk_int();
+            //KEYBOARD_PINS.enable_at_clk_int();
         }
         HOST_MODE.borrow(cs).set(true);
         DEVICE_ACK.borrow(cs).set(false);
