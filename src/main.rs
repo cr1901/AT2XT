@@ -64,9 +64,6 @@ fn timer0_handler() {
 } */
 
 
-//task!(PORT1)
-
-
 task!(PORT1, porta_handler);
 fn porta_handler(mut r: PORT1::Resources) {
     if **r.HOST_MODE {
@@ -127,18 +124,8 @@ fn init(p: init::Peripherals, r: init::Resources) {
 }
 
 fn idle(mut r: idle::Resources) -> ! {
-
     send_byte_to_at_keyboard(&mut r, 0xFF);
-    loop {
-        // NOTE it seems this infinite loop gets optimized to `undef` if the NOP
-        // is removed
-        asm::nop()
-    }
-}
 
-
-/* #[no_mangle]
-pub extern "C" fn used_to_be_main() -> ! {
     let mut loop_cmd : Cmd;
     let mut loop_reply : ProcReply = ProcReply::init();
     let mut fsm_driver : Fsm = Fsm::start();
@@ -149,19 +136,17 @@ pub extern "C" fn used_to_be_main() -> ! {
 
         loop_reply = match loop_cmd {
             Cmd::ClearBuffer => {
-                free(|cs| {
-                    IN_BUFFER.borrow(cs)
-                        .borrow_mut()
-                        .flush();
+                rtfm::atomic(|cs| {
+                    r.IN_BUFFER.borrow_mut(cs).flush();
                 });
                 ProcReply::ClearedBuffer
             },
             Cmd::ToggleLed(m) => {
-                toggle_leds(m);
+                toggle_leds(&mut r, m);
                 ProcReply::LedToggled(m)
             }
             Cmd::SendXTKey(k) => {
-                send_byte_to_pc(k);
+                send_byte_to_pc(&mut r, k);
                 ProcReply::SentKey(k)
             },
             Cmd::WaitForKey => {
@@ -169,23 +154,24 @@ pub extern "C" fn used_to_be_main() -> ! {
                 // the keyboard to send data to the micro at the same time. To keep control flow simple,
                 // the micro will only respond to host PC acknowledge requests if its idle.
                 let mut xt_reset : bool = false;
-                'idle: while free(|cs| { IN_BUFFER.borrow(cs).borrow().is_empty() }) {
+                'idle: while rtfm::atomic(|cs| { r.IN_BUFFER.borrow(cs).is_empty() }) {
                     // If host computer wants to reset
-                    /* if //KEYBOARD_PINS.xt_sense.is_unset() {
-                        send_byte_to_at_keyboard(0xFF);
-                        send_byte_to_pc(0xAA);
+                    if rtfm::atomic(|cs| {
+                        r.KEYBOARD_PINS.borrow(cs)
+                            .xt_sense.is_unset(r.PORT_1_2.borrow(cs))
+                    }) {
+                        send_byte_to_at_keyboard(&mut r, 0xFF);
+                        send_byte_to_pc(&mut r, 0xAA);
                         xt_reset = true;
                         break;
-                    } */
+                    }
                 }
 
                 if xt_reset {
                     ProcReply::KeyboardReset
                 } else {
-                    let mut bits_in = free(|cs|{
-                        IN_BUFFER.borrow(cs)
-                            .borrow_mut()
-                            .take().unwrap()
+                    let mut bits_in = rtfm::atomic(|cs|{
+                        r.IN_BUFFER.borrow_mut(cs).take().unwrap()
                     });
 
                     bits_in = bits_in & !(0x4000 + 0x0001); // Mask out start/stop bit.
@@ -196,49 +182,54 @@ pub extern "C" fn used_to_be_main() -> ! {
 
         }
     }
-} */
+}
 
-pub fn send_xt_bit(bit : u8) -> () {
-    free(|cs| {
+pub fn send_xt_bit(r: &mut idle::Resources, bit : u8) -> () {
+    rtfm::atomic(|cs| {
+        let pins = r.KEYBOARD_PINS.borrow(cs);
+        let port = r.PORT_1_2.borrow(cs);
         if bit == 1 {
-            //KEYBOARD_PINS.xt_data.set(&cs);
+            pins.xt_data.set(port);
         } else {
-            //KEYBOARD_PINS.xt_data.unset(&cs);
+            pins.xt_data.unset(port);
         }
 
-        //KEYBOARD_PINS.xt_clk.unset(&cs);
+        pins.xt_clk.unset(port);
     });
 
     delay(88); // 55 microseconds at 1.6 MHz
 
-    free(|cs| {
-        //KEYBOARD_PINS.xt_clk.set(&cs);
+    rtfm::atomic(|cs| {
+        r.KEYBOARD_PINS.borrow(cs)
+            .xt_clk.set(r.PORT_1_2.borrow(cs));
     });
 }
 
-pub fn send_byte_to_pc(mut byte : u8) -> () {
+pub fn send_byte_to_pc(r: &mut idle::Resources, mut byte : u8) -> () {
     // The host cannot send data; the only communication it can do with the micro is pull
     // the CLK (reset) and DATA (shift register full) low.
     // Wait for the host to release the lines.
 
-    /* while //KEYBOARD_PINS.xt_clk.is_unset() || //KEYBOARD_PINS.xt_data.is_unset() {
+    while rtfm::atomic(|cs| {
+        let pins = r.KEYBOARD_PINS.borrow(cs);
+        let port = r.PORT_1_2.borrow(cs);
+        pins.xt_clk.is_unset(port) || pins.xt_data.is_unset(port)
+    }) { }
 
-    } */
-
-    free(|cs| {
-        //KEYBOARD_PINS.xt_out(&cs);
+    rtfm::atomic(|cs| {
+        r.KEYBOARD_PINS.borrow(cs).xt_out(r.PORT_1_2.borrow(cs));
     });
 
-    send_xt_bit(0);
-    send_xt_bit(1);
+    send_xt_bit(r, 0);
+    send_xt_bit(r, 1);
 
     for _ in 0..8 {
-        send_xt_bit((byte & 0x01)); /* Send data... */
+        send_xt_bit(r, (byte & 0x01)); /* Send data... */
 		byte = byte >> 1;
     }
 
-    free(|cs| {
-        //KEYBOARD_PINS.xt_in(&cs);
+    rtfm::atomic(|cs| {
+        r.KEYBOARD_PINS.borrow(cs).xt_in(r.PORT_1_2.borrow(cs));
     });
 }
 
