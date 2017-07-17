@@ -7,12 +7,12 @@
 use core::cell::{Cell, RefCell};
 
 extern crate bare_metal;
-use bare_metal::{Mutex};
+use bare_metal::{Mutex, CriticalSection};
 
 extern crate volatile_register;
 
 extern crate msp430;
-use msp430::interrupt::{enable, free};
+use msp430::interrupt::{enable, free, disable};
 
 extern crate bit_reverse;
 use bit_reverse::ParallelReverse;
@@ -38,55 +38,54 @@ fn timer0_handler() {
 interrupt!(PORT1, porta_handler);
 fn porta_handler() {
     // Interrupts already disabled, and doesn't make sense to nest them, since bits need
-    // to be received in order. Just wrap whole block.
-    free(|cs| {
-        if HOST_MODE.borrow(cs).get() {
-            let mut key_out = KEY_OUT.borrow(cs).get();
-            if !key_out.is_empty() {
-                if key_out.shift_out() {
-                    KEYBOARD_PINS.at_data.set(&cs);
-                } else{
-                    KEYBOARD_PINS.at_data.unset(&cs);
-                }
-
-                // Immediately after sending out the Stop Bit, we should release the lines.
-                if key_out.is_empty() {
-                    KEYBOARD_PINS.at_idle(&cs);
-                }
-            } else {
-                if KEYBOARD_PINS.at_data.is_unset() {
-                    DEVICE_ACK.borrow(cs).set(true);
-                    key_out.clear();
-                }
+    // to be received in order. Thus, this is still safe.
+    let cs = unsafe { &CriticalSection::new() };
+    if HOST_MODE.borrow(cs).get() {
+        let mut key_out = KEY_OUT.borrow(cs).get();
+        if !key_out.is_empty() {
+            if key_out.shift_out() {
+                KEYBOARD_PINS.at_data.set(&cs);
+            } else{
+                KEYBOARD_PINS.at_data.unset(&cs);
             }
 
-            KEY_OUT.borrow(cs).set(key_out);
-            KEYBOARD_PINS.clear_at_clk_int(&cs);
-        } else {
-            let full : bool;
-            let mut key_in = KEY_IN.borrow(cs).get();
-
-            // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
-            // sync for nested interrupts while not giving up safety?
-            // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-            key_in.shift_in(KEYBOARD_PINS.at_data.is_set());
-            full = key_in.is_full();
-
-            if full {
-                KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
-
-                IN_BUFFER.borrow(cs)
-                    .borrow_mut()
-                    .put(key_in.take().unwrap());
-                key_in.clear();
-
+            // Immediately after sending out the Stop Bit, we should release the lines.
+            if key_out.is_empty() {
                 KEYBOARD_PINS.at_idle(&cs);
             }
-
-            KEY_IN.borrow(cs).set(key_in);
-            KEYBOARD_PINS.clear_at_clk_int(&cs);
+        } else {
+            if KEYBOARD_PINS.at_data.is_unset() {
+                DEVICE_ACK.borrow(cs).set(true);
+                key_out.clear();
+            }
         }
-    });
+
+        KEY_OUT.borrow(cs).set(key_out);
+        KEYBOARD_PINS.clear_at_clk_int(&cs);
+    } else {
+        let full : bool;
+        let mut key_in = KEY_IN.borrow(cs).get();
+
+        // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
+        // sync for nested interrupts while not giving up safety?
+        // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
+        key_in.shift_in(KEYBOARD_PINS.at_data.is_set());
+        full = key_in.is_full();
+
+        if full {
+            KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
+
+            IN_BUFFER.borrow(cs)
+                .borrow_mut()
+                .put(key_in.take().unwrap());
+            key_in.clear();
+
+            KEYBOARD_PINS.at_idle(&cs);
+        }
+
+        KEY_IN.borrow(cs).set(key_in);
+        KEYBOARD_PINS.clear_at_clk_int(&cs);
+    }
 }
 
 static IN_BUFFER : Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
@@ -105,9 +104,11 @@ pub extern "C" fn main() -> ! {
         );
     }
 
-    free(|cs| {
+    // Interrupts aren't enabled yet, thus this is safe.
+    {
+        let cs = unsafe { &CriticalSection::new() };
         KEYBOARD_PINS.idle(&cs); // FIXME: Can we make this part of new()?
-    });
+    }
 
     unsafe {
         let clock = &*msp430g2211::SYSTEM_CLOCK.get();
@@ -187,11 +188,9 @@ pub fn send_xt_bit(bit : u8) -> () {
         }
 
         KEYBOARD_PINS.xt_clk.unset(&cs);
-    });
 
-    delay(88); // 55 microseconds at 1.6 MHz
+        unsafe { enable_int_and_busy_wait(88); } // 55 microseconds at 1.6 MHz
 
-    free(|cs| {
         KEYBOARD_PINS.xt_clk.set(&cs);
     });
 }
@@ -231,25 +230,17 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
         // context to touch this variable.
         KEY_OUT.borrow(cs).set(key_out);
         KEYBOARD_PINS.disable_at_clk_int();
-    });
 
-    while KEYBOARD_PINS.at_clk.is_unset() {
+        // Interrupts are disabled. If we add timer, might as well make unsafe and add
+        // enable/disable in here.
+        while KEYBOARD_PINS.at_clk.is_unset() {
 
-    }
+        }
 
-    free(|cs| {
         KEYBOARD_PINS.at_inhibit(&cs);
-    });
-
-    delay(160); // 100 microseconds
-
-    free(|cs| {
+        unsafe { enable_int_and_busy_wait(160); } // 100 microseconds
         KEYBOARD_PINS.at_data.unset(cs);
-    });
-
-    delay(53); // 33 microseconds
-
-    free(|cs| {
+        unsafe { enable_int_and_busy_wait(53); } // 33 microseconds
         KEYBOARD_PINS.at_clk.set(cs);
         KEYBOARD_PINS.at_clk.mk_in(cs);
         KEYBOARD_PINS.clear_at_clk_int(cs);
@@ -273,6 +264,14 @@ fn toggle_leds(mask : u8) -> () {
     send_byte_to_at_keyboard(0xED);
     delay(5000);
     send_byte_to_at_keyboard(mask);
+}
+
+// "Yield" to interrupt/other tasks if there are any. No data is touched for the duration
+// that this function runs, so data races cannot occur from this function.
+unsafe fn enable_int_and_busy_wait(n: u16) {
+    enable();
+    delay(n);
+    disable();
 }
 
 fn delay(n: u16) {
