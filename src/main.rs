@@ -67,67 +67,49 @@ fn timer0_handler() {
 //task!(PORT1)
 
 
-// task!(PORT1, porta_handler);
-/* fn porta_handler(r: PORT1::Resources) {
-    // Interrupts already disabled, and doesn't make sense to nest them, since bits need
-    // to be received in order. Just wrap whole block.
-    free(|cs| {
-        if HOST_MODE.borrow(cs).get() {
-            let mut key_out = KEY_OUT.borrow(cs).get();
-            if !key_out.is_empty() {
-                if key_out.shift_out() {
-                    //KEYBOARD_PINS.at_data.set(&cs);
-                } else{
-                    //KEYBOARD_PINS.at_data.unset(&cs);
-                }
-
-                // Immediately after sending out the Stop Bit, we should release the lines.
-                if key_out.is_empty() {
-                    //KEYBOARD_PINS.at_idle(&cs);
-                }
-            } else {
-                if //KEYBOARD_PINS.at_data.is_unset() {
-                    DEVICE_ACK.borrow(cs).set(true);
-                    key_out.clear();
-                }
+task!(PORT1, porta_handler);
+fn porta_handler(mut r: PORT1::Resources) {
+    if **r.HOST_MODE {
+        if !r.KEY_OUT.is_empty() {
+            if r.KEY_OUT.shift_out() {
+                r.KEYBOARD_PINS.at_data.set(&r.PORT_1_2);
+            } else{
+                r.KEYBOARD_PINS.at_data.unset(&r.PORT_1_2);
             }
 
-            KEY_OUT.borrow(cs).set(key_out);
-            //KEYBOARD_PINS.clear_at_clk_int(&cs);
+            // Immediately after sending out the Stop Bit, we should release the lines.
+            if r.KEY_OUT.is_empty() {
+                r.KEYBOARD_PINS.at_idle(r.PORT_1_2);
+            }
         } else {
-            let full : bool;
-            let mut key_in = KEY_IN.borrow(cs).get();
-
-            // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
-            // sync for nested interrupts while not giving up safety?
-            // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-            key_in.shift_in(//KEYBOARD_PINS.at_data.is_set());
-            full = key_in.is_full();
-
-            if full {
-                //KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
-
-                IN_BUFFER.borrow(cs)
-                    .borrow_mut()
-                    .put(key_in.take().unwrap());
-                key_in.clear();
-
-                //KEYBOARD_PINS.at_idle(&cs);
+            if r.KEYBOARD_PINS.at_data.is_unset(r.PORT_1_2) {
+                **r.DEVICE_ACK = true;
+                r.KEY_OUT.clear();
             }
-
-            KEY_IN.borrow(cs).set(key_in);
-            //KEYBOARD_PINS.clear_at_clk_int(&cs);
         }
-    });
-} */
 
+        r.KEYBOARD_PINS.clear_at_clk_int(r.PORT_1_2);
+    } else {
+        let full : bool;
 
+        // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
+        // sync for nested interrupts while not giving up safety?
+        // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
+        r.KEY_IN.shift_in(r.KEYBOARD_PINS.at_data.is_set(r.PORT_1_2));
+        full = r.KEY_IN.is_full();
 
-const AT_CLK: u8 = 1;
-const XT_SENSE: u8 = 1 << 1;
-const XT_CLK: u8 = 1 << 2;
-const XT_DATA: u8 = 1 << 3;
-const AT_DATA: u8 = 1 << 4;
+        if full {
+            r.KEYBOARD_PINS.at_inhibit(r.PORT_1_2); // Ask keyboard to not send anything while processing keycode.
+
+            r.IN_BUFFER.put(r.KEY_IN.take().unwrap());
+            r.KEY_IN.clear();
+
+            r.KEYBOARD_PINS.at_idle(r.PORT_1_2);
+        }
+
+        r.KEYBOARD_PINS.clear_at_clk_int(r.PORT_1_2);
+    }
+}
 
 
 fn init(p: init::Peripherals, r: init::Resources) {
@@ -144,14 +126,9 @@ fn init(p: init::Peripherals, r: init::Resources) {
     p.SYSTEM_CLOCK.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4.
 }
 
-fn idle(r: idle::Resources) -> ! {
+fn idle(mut r: idle::Resources) -> ! {
 
-    //send_byte_to_at_keyboard(&r, 0xFF);
-    /* rtfm::atomic(|cs| {
-        r.KEYBOARD_PINS.borrow(cs).idle(r.PORT_1_2.borrow(cs));
-    }); */
-
-
+    send_byte_to_at_keyboard(&mut r, 0xFF);
     loop {
         // NOTE it seems this infinite loop gets optimized to `undef` if the NOP
         // is removed
@@ -265,57 +242,67 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
     });
 }
 
-/* fn send_byte_to_at_keyboard(r: &idle::Resources, byte : u8) -> () {
-    /* rtfm::atomic(|cs| {
-        let mut key_out = r.KEY_OUT.borrow(cs);
+fn send_byte_to_at_keyboard(r: &mut idle::Resources, byte : u8) -> () {
+    rtfm::atomic(|cs| {
+        let mut key_out = r.KEY_OUT.borrow_mut(cs);
         key_out.put(byte).unwrap();
         // Safe outside of critical section: As long as HOST_MODE is
         // not set, it's not possible for the interrupt
         // context to touch this variable.
-        r.KEYBOARD_PINS.borrow(cs).disable_at_clk_int();
-    }); */
+        r.KEYBOARD_PINS.borrow(cs)
+            .disable_at_clk_int(r.PORT_1_2.borrow(cs));
+    });
 
-    /* while //KEYBOARD_PINS.at_clk.is_unset() {
+    /* If/when timer int is enabled, this loop really needs to allow preemption during
+    I/O read. Can it be done without overhead of CriticalSection? */
+    while rtfm::atomic(|cs| {
+        r.KEYBOARD_PINS.borrow(cs)
+            .at_clk.is_unset(r.PORT_1_2.borrow(cs))
+    }) { }
 
-    } */
 
-    free(|cs| {
-        //KEYBOARD_PINS.at_inhibit(&cs);
+    rtfm::atomic(|cs| {
+        r.KEYBOARD_PINS.borrow(cs)
+            .at_inhibit(r.PORT_1_2.borrow(cs));
     });
 
     delay(160); // 100 microseconds
 
     free(|cs| {
-        //KEYBOARD_PINS.at_data.unset(cs);
+        r.KEYBOARD_PINS.borrow(cs)
+            .at_data.unset(r.PORT_1_2.borrow(cs));
     });
 
     delay(53); // 33 microseconds
 
-    free(|cs| {
-        //KEYBOARD_PINS.at_clk.set(cs);
-        //KEYBOARD_PINS.at_clk.mk_in(cs);
-        //KEYBOARD_PINS.clear_at_clk_int(cs);
+    rtfm::atomic(|cs| {
+        let pins = r.KEYBOARD_PINS.borrow(cs);
+        let port = r.PORT_1_2.borrow(cs);
+        pins.at_clk.set(port);
+        pins.at_clk.mk_in(port);
+        pins.clear_at_clk_int(port);
+
         unsafe {
-            //KEYBOARD_PINS.enable_at_clk_int();
+            pins.enable_at_clk_int(port);
         }
-        HOST_MODE.borrow(cs).set(true);
-        DEVICE_ACK.borrow(cs).set(false);
+        **r.HOST_MODE.borrow_mut(cs) = true;
+        **r.DEVICE_ACK.borrow_mut(cs) = false;
     });
 
-    while free(|cs| {
-        !DEVICE_ACK.borrow(cs).get()
+    while rtfm::atomic(|cs| {
+        !**r.DEVICE_ACK.borrow(cs)
     }) { }
 
-    free(|cs| {
-        HOST_MODE.borrow(cs).set(false);
+    rtfm::atomic(|cs| {
+        **r.HOST_MODE.borrow_mut(cs) = false;
     })
 }
 
-fn toggle_leds(mask : u8) -> () {
-    send_byte_to_at_keyboard(0xED);
+fn toggle_leds(r: &mut idle::Resources, mask : u8) -> () {
+    send_byte_to_at_keyboard(r, 0xED);
     delay(5000);
-    send_byte_to_at_keyboard(mask);
-} */
+    send_byte_to_at_keyboard(r, mask);
+}
 
 fn delay(n: u16) {
     unsafe {
