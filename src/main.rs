@@ -189,7 +189,7 @@ pub fn send_xt_bit(bit : u8) -> () {
 
         KEYBOARD_PINS.xt_clk.unset(&cs);
 
-        unsafe { enable_int_and_busy_wait(88); } // 55 microseconds at 1.6 MHz
+        delay(88); // 55 microseconds at 1.6 MHz
 
         KEYBOARD_PINS.xt_clk.set(&cs);
     });
@@ -222,8 +222,14 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
 }
 
 fn send_byte_to_at_keyboard(byte : u8) -> () {
-    free(|cs| {
+    KEYBOARD_PINS.disable_at_clk_int();
+
+    {
+        // Interrupt that touches data used in this critical section is disabled
+        // (in case we add timer support later), so don't bother w/ free().
+        let cs = unsafe { &CriticalSection::new() };
         let mut key_out = KEY_OUT.borrow(cs).get();
+
         key_out.put(byte).unwrap();
         // Safe outside of critical section: As long as HOST_MODE is
         // not set, it's not possible for the interrupt
@@ -231,25 +237,28 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
         KEY_OUT.borrow(cs).set(key_out);
         KEYBOARD_PINS.disable_at_clk_int();
 
-        // Interrupts are disabled. If we add timer, might as well make unsafe and add
+        // If we add timer, might as well make unsafe and add
         // enable/disable in here.
         while KEYBOARD_PINS.at_clk.is_unset() {
 
         }
 
         KEYBOARD_PINS.at_inhibit(&cs);
-        unsafe { enable_int_and_busy_wait(160); } // 100 microseconds
+        delay(160); // 100 microseconds
+
         KEYBOARD_PINS.at_data.unset(cs);
-        unsafe { enable_int_and_busy_wait(53); } // 33 microseconds
+        delay(53); // 33 microseconds
+
         KEYBOARD_PINS.at_clk.set(cs);
         KEYBOARD_PINS.at_clk.mk_in(cs);
         KEYBOARD_PINS.clear_at_clk_int(cs);
-        unsafe {
-            KEYBOARD_PINS.enable_at_clk_int();
-        }
         HOST_MODE.borrow(cs).set(true);
         DEVICE_ACK.borrow(cs).set(false);
-    });
+    }
+
+    unsafe {
+        KEYBOARD_PINS.enable_at_clk_int();
+    }
 
     while free(|cs| {
         !DEVICE_ACK.borrow(cs).get()
@@ -268,6 +277,7 @@ fn toggle_leds(mask : u8) -> () {
 
 // "Yield" to interrupt/other tasks if there are any. No data is touched for the duration
 // that this function runs, so data races cannot occur from this function.
+#[allow(dead_code)]
 unsafe fn enable_int_and_busy_wait(n: u16) {
     enable();
     delay(n);
