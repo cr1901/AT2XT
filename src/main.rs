@@ -34,30 +34,25 @@ mod driver;
 use driver::KeyboardPins;
 
 
-macro_rules! set_bits_with_mask {
-    ($r:ident, $w:ident, $m:expr) => { $w.bits($r.bits() | $m) };
-}
-
-macro_rules! clear_bits_with_mask {
-    ($r:ident, $w:ident, $m:expr) => { $w.bits($r.bits() & !$m) };
-}
-
-
-
 app! {
     device: msp430g2211,
 
     idle: {
-        resources: [KEYBOARD_PINS, PORT_1_2],
+        resources: [KEYBOARD_PINS, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT, HOST_MODE, DEVICE_ACK],
     },
 
     resources: {
+        IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
         KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
+        KEY_IN : KeyIn = KeyIn::new();
+        KEY_OUT : KeyOut = KeyOut::new();
+        HOST_MODE : bool = false;
+        DEVICE_ACK : bool = false;
     },
 
     tasks: {
         PORT1: {
-            resources: [PORT_1_2],
+            resources: [KEYBOARD_PINS, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT, HOST_MODE, DEVICE_ACK],
         },
     },
 }
@@ -72,7 +67,7 @@ fn timer0_handler() {
 //task!(PORT1)
 
 
-//task!(PORT1, porta_handler);
+// task!(PORT1, porta_handler);
 /* fn porta_handler(r: PORT1::Resources) {
     // Interrupts already disabled, and doesn't make sense to nest them, since bits need
     // to be received in order. Just wrap whole block.
@@ -126,11 +121,7 @@ fn timer0_handler() {
     });
 } */
 
-static IN_BUFFER : Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
-static KEY_IN : Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
-static KEY_OUT : Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
-static HOST_MODE : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
-static DEVICE_ACK : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
+
 
 const AT_CLK: u8 = 1;
 const XT_SENSE: u8 = 1 << 1;
@@ -154,7 +145,12 @@ fn init(p: init::Peripherals, r: init::Resources) {
 }
 
 fn idle(r: idle::Resources) -> ! {
-    //send_byte_to_at_keyboard(0xFF);
+
+    //send_byte_to_at_keyboard(&r, 0xFF);
+    /* rtfm::atomic(|cs| {
+        r.KEYBOARD_PINS.borrow(cs).idle(r.PORT_1_2.borrow(cs));
+    }); */
+
 
     loop {
         // NOTE it seems this infinite loop gets optimized to `undef` if the NOP
@@ -164,10 +160,8 @@ fn idle(r: idle::Resources) -> ! {
 }
 
 
-#[no_mangle]
+/* #[no_mangle]
 pub extern "C" fn used_to_be_main() -> ! {
-    send_byte_to_at_keyboard(0xFF);
-
     let mut loop_cmd : Cmd;
     let mut loop_reply : ProcReply = ProcReply::init();
     let mut fsm_driver : Fsm = Fsm::start();
@@ -225,7 +219,7 @@ pub extern "C" fn used_to_be_main() -> ! {
 
         }
     }
-}
+} */
 
 pub fn send_xt_bit(bit : u8) -> () {
     free(|cs| {
@@ -271,16 +265,15 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
     });
 }
 
-fn send_byte_to_at_keyboard(byte : u8) -> () {
-    free(|cs| {
-        let mut key_out = KEY_OUT.borrow(cs).get();
+/* fn send_byte_to_at_keyboard(r: &idle::Resources, byte : u8) -> () {
+    /* rtfm::atomic(|cs| {
+        let mut key_out = r.KEY_OUT.borrow(cs);
         key_out.put(byte).unwrap();
         // Safe outside of critical section: As long as HOST_MODE is
         // not set, it's not possible for the interrupt
         // context to touch this variable.
-        KEY_OUT.borrow(cs).set(key_out);
-        //KEYBOARD_PINS.disable_at_clk_int();
-    });
+        r.KEYBOARD_PINS.borrow(cs).disable_at_clk_int();
+    }); */
 
     /* while //KEYBOARD_PINS.at_clk.is_unset() {
 
@@ -322,7 +315,7 @@ fn toggle_leds(mask : u8) -> () {
     send_byte_to_at_keyboard(0xED);
     delay(5000);
     send_byte_to_at_keyboard(mask);
-}
+} */
 
 fn delay(n: u16) {
     unsafe {
