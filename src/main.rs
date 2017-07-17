@@ -1,6 +1,6 @@
 #![no_std]
-#![no_main]
 #![feature(asm)]
+#![feature(proc_macro)]
 #![feature(abi_msp430_interrupt)]
 #![feature(const_fn)]
 
@@ -13,12 +13,16 @@ extern crate volatile_register;
 
 extern crate msp430;
 use msp430::interrupt::{enable, free};
+use msp430::asm;
 
 extern crate bit_reverse;
 use bit_reverse::ParallelReverse;
 
-#[macro_use(interrupt)]
 extern crate msp430g2211;
+
+#[macro_use(task)]
+extern crate msp430_rtfm as rtfm;
+use rtfm::app;
 
 mod keyfsm;
 use keyfsm::{Cmd, ProcReply, Fsm};
@@ -30,13 +34,42 @@ mod driver;
 use driver::KeyboardPins;
 
 
+macro_rules! set_bits_with_mask {
+    ($r:ident, $w:ident, $m:expr) => { $w.bits($r.bits() | $m) };
+}
+
+macro_rules! clear_bits_with_mask {
+    ($r:ident, $w:ident, $m:expr) => { $w.bits($r.bits() & !$m) };
+}
+
+
+
+app! {
+    device: msp430g2211,
+
+    idle: {
+        resources: [PORT_1_2],
+    },
+
+    tasks: {
+        PORT1: {
+            resources: [PORT_1_2],
+        },
+    },
+}
+
+
 /* interrupt!(TIMERA0, timer0_handler);
 fn timer0_handler() {
     // you can do something here
 } */
 
-interrupt!(PORT1, porta_handler);
-fn porta_handler() {
+
+//task!(PORT1)
+
+
+//task!(PORT1, porta_handler);
+fn porta_handler(r: PORT1::Resources) {
     // Interrupts already disabled, and doesn't make sense to nest them, since bits need
     // to be received in order. Just wrap whole block.
     free(|cs| {
@@ -96,15 +129,44 @@ static HOST_MODE : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static DEVICE_ACK : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 
-#[no_mangle]
-pub extern "C" fn main() -> ! {
-    unsafe {
-        let wdt = &*msp430g2211::WATCHDOG_TIMER.get();
-        wdt.wdtctl.write(|w| w.bits(0x5A00) // password
-            .wdthold().set_bit()
-        );
-    }
 
+const AT_CLK: u8 = 1;
+const XT_SENSE: u8 = 1 << 1;
+const XT_CLK: u8 = 1 << 2;
+const XT_DATA: u8 = 1 << 3;
+const AT_DATA: u8 = 1 << 4;
+
+
+fn init(p: init::Peripherals) {
+    p.WATCHDOG_TIMER.wdtctl.write(|w| unsafe {
+        const PASSWORD: u16 = 0x5A00;
+        w.bits(PASSWORD).wdthold().set_bit()
+    });
+
+    // Make port idle
+    p.PORT_1_2.p1dir.write(|w| w.bits(0x00));
+    p.PORT_1_2.p1ifg.modify(|r, w| clear_bits_with_mask!(r, w, AT_CLK));
+    p.PORT_1_2.p1ies.modify(|r, w| set_bits_with_mask!(r, w, AT_CLK));
+    p.PORT_1_2.p1ie.modify(|r, w| set_bits_with_mask!(r, w, AT_CLK));
+
+    p.SYSTEM_CLOCK.bcsctl1.write(|w| w.xt2off().set_bit()
+        .rsel3().set_bit()); // XT2 off, Range Select 7.
+    p.SYSTEM_CLOCK.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4.
+}
+
+fn idle(r: idle::Resources) -> ! {
+    //send_byte_to_at_keyboard(0xFF);
+
+    loop {
+        // NOTE it seems this infinite loop gets optimized to `undef` if the NOP
+        // is removed
+        asm::nop()
+    }
+}
+
+
+#[no_mangle]
+pub extern "C" fn used_to_be_main() -> ! {
     free(|cs| {
         KEYBOARD_PINS.idle(&cs); // FIXME: Can we make this part of new()?
     });

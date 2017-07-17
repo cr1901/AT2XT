@@ -24,6 +24,9 @@ version = "0.1.0"
 git = "https://github.com/cr1901/msp430g2211"
 features = ["rt"]
 
+[dependencies.msp430-rtfm]
+git = "https://github.com/japaric/msp430-rtfm"
+
 [profile.dev]
 debug = true
 
