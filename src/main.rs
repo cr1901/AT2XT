@@ -4,17 +4,6 @@
 #![feature(abi_msp430_interrupt)]
 #![feature(const_fn)]
 
-use core::cell::{Cell, RefCell};
-
-extern crate bare_metal;
-use bare_metal::{Mutex};
-
-extern crate volatile_register;
-
-extern crate msp430;
-use msp430::interrupt::{enable, free};
-use msp430::asm;
-
 extern crate bit_reverse;
 use bit_reverse::ParallelReverse;
 
@@ -259,7 +248,7 @@ fn send_byte_to_at_keyboard(r: &mut idle::Resources, byte : u8) -> () {
 
     delay(160); // 100 microseconds
 
-    free(|cs| {
+    rtfm::atomic(|cs| {
         r.KEYBOARD_PINS.borrow(cs)
             .at_data.unset(r.PORT_1_2.borrow(cs));
     });
