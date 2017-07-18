@@ -15,7 +15,7 @@ extern crate msp430;
 use msp430::interrupt::{enable, free, disable};
 
 extern crate bit_reverse;
-use bit_reverse::ParallelReverse;
+use bit_reverse::BitwiseReverse;
 
 #[macro_use(interrupt)]
 extern crate msp430g2211;
