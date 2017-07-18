@@ -5,7 +5,7 @@
 #![feature(const_fn)]
 
 extern crate bit_reverse;
-use bit_reverse::ParallelReverse;
+use bit_reverse::BitwiseReverse;
 
 extern crate msp430g2211;
 
