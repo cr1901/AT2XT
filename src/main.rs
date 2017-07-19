@@ -13,6 +13,9 @@ extern crate msp430g2211;
 extern crate msp430_rtfm as rtfm;
 use rtfm::app;
 
+extern crate msp430_atomic;
+use msp430_atomic::AtomicBool;
+
 mod keyfsm;
 use keyfsm::{Cmd, ProcReply, Fsm};
 
@@ -23,11 +26,14 @@ mod driver;
 use driver::KeyboardPins;
 
 
+static HOST_MODE : AtomicBool = AtomicBool::new(false);
+static DEVICE_ACK : AtomicBool = AtomicBool::new(false);
+
 app! {
     device: msp430g2211,
 
     idle: {
-        resources: [KEYBOARD_PINS, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT, HOST_MODE, DEVICE_ACK],
+        resources: [KEYBOARD_PINS, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT],
     },
 
     resources: {
@@ -35,13 +41,11 @@ app! {
         static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
         static KEY_IN : KeyIn = KeyIn::new();
         static KEY_OUT : KeyOut = KeyOut::new();
-        static HOST_MODE : bool = false;
-        static DEVICE_ACK : bool = false;
     },
 
     tasks: {
         PORT1: {
-            resources: [KEYBOARD_PINS, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT, HOST_MODE, DEVICE_ACK],
+            resources: [KEYBOARD_PINS, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT],
         },
     },
 }
@@ -55,7 +59,7 @@ fn timer0_handler() {
 
 task!(PORT1, porta_handler);
 fn porta_handler(mut r: PORT1::Resources) {
-    if **r.HOST_MODE {
+    if HOST_MODE.load() {
         if !r.KEY_OUT.is_empty() {
             if r.KEY_OUT.shift_out() {
                 r.KEYBOARD_PINS.at_data.set(&r.PORT_1_2);
@@ -69,7 +73,7 @@ fn porta_handler(mut r: PORT1::Resources) {
             }
         } else {
             if r.KEYBOARD_PINS.at_data.is_unset(r.PORT_1_2) {
-                **r.DEVICE_ACK = true;
+                DEVICE_ACK.store(true);
                 r.KEY_OUT.clear();
             }
         }
@@ -265,17 +269,13 @@ fn send_byte_to_at_keyboard(r: &mut idle::Resources, byte : u8) -> () {
         unsafe {
             pins.enable_at_clk_int(port);
         }
-        **r.HOST_MODE.borrow_mut(cs) = true;
-        **r.DEVICE_ACK.borrow_mut(cs) = false;
+        HOST_MODE.store(true);
+        DEVICE_ACK.store(false);
     });
 
-    while rtfm::atomic(|cs| {
-        !**r.DEVICE_ACK.borrow(cs)
-    }) { }
+    while !DEVICE_ACK.load() { }
 
-    rtfm::atomic(|cs| {
-        **r.HOST_MODE.borrow_mut(cs) = false;
-    })
+    HOST_MODE.store(false);
 }
 
 fn toggle_leds(r: &mut idle::Resources, mask : u8) -> () {

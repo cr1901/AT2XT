@@ -18,6 +18,9 @@ features = ["rt"]
 [dependencies.msp430-rtfm]
 git = "https://github.com/japaric/msp430-rtfm"
 
+[dependencies.msp430-atomic]
+git = "https://github.com/pftbest/msp430-atomic"
+
 [profile.dev]
 debug = true
 
