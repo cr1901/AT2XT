@@ -37,11 +37,11 @@ app! {
     },
 
     resources: {
-        TIMEOUT : bool = false;
-        IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
-        KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
-        KEY_IN : KeyIn = KeyIn::new();
-        KEY_OUT : KeyOut = KeyOut::new();
+        static TIMEOUT : bool = false;
+        static IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
+        static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
+        static KEY_IN : KeyIn = KeyIn::new();
+        static KEY_OUT : KeyOut = KeyOut::new();
     },
 
     tasks: {

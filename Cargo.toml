@@ -8,18 +8,16 @@ version = "0.1.7"
 default_features = false
 
 [dependencies.msp430-rt]
-git = "https://github.com/pftbest/msp430-rt"
-rev = "7e3a713dc"
+version = "0.1.0"
 features = ["abort-on-panic"]
 
 [dependencies.msp430g2211]
 git = "https://github.com/cr1901/msp430g2211"
-rev = "bb7e855b6"
 features = ["rt"]
 
 [dependencies.msp430-rtfm]
 git = "https://github.com/japaric/msp430-rtfm"
-rev = "489e09d9"
+rev = "4b485e61a"
 
 [dependencies.msp430-atomic]
 git = "https://github.com/pftbest/msp430-atomic"
@@ -31,6 +29,4 @@ debug = true
 lto = true
 
 [replace]
-"https://github.com/pftbest/msp430-rt#0.1.0" = { git = "https://github.com/pftbest/msp430-rt", rev = "7e3a713dc"}
-"https://github.com/japaric/rtfm-syntax#0.1.0" = { git = "https://github.com/japaric/rtfm-syntax", rev = "2272227"}
-"r0:0.2.1" = { git = "https://github.com/japaric/r0", rev = "137dc11a3e" }
+"https://github.com/japaric/rtfm-syntax#0.1.0" = { git = "https://github.com/japaric/rtfm-syntax", rev = "631e4b04"}
