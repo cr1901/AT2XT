@@ -25,6 +25,22 @@ use keybuffer::{KeycodeBuffer, KeyIn, KeyOut};
 mod driver;
 use driver::KeyboardPins;
 
+#[cfg(feature = "use-timer")]
+macro_rules! us_to_ticks {
+    ($u:expr) => {
+        // Timer is 100000 Hz, thus granularity of 10us.
+        ($u / 10) + 1
+    }
+}
+
+#[cfg(not(feature = "use-timer"))]
+macro_rules! us_to_ticks {
+    ($u:expr) => {
+        // Delay is approx clock speed, thus granularity of 0.625us.
+        ($u * 16) / 10
+    }
+}
+
 
 static HOST_MODE : AtomicBool = AtomicBool::new(false);
 static DEVICE_ACK : AtomicBool = AtomicBool::new(false);
@@ -232,7 +248,7 @@ pub fn send_xt_bit(r: &mut idle::Resources, bit : u8) -> () {
         pins.xt_clk.unset(port);
     });
 
-    delay(r, 6); // 55 microseconds at 1.6 MHz
+    delay(r, us_to_ticks!(55));
 
     rtfm::atomic(|cs| {
         r.KEYBOARD_PINS.borrow(cs)
@@ -292,14 +308,14 @@ fn send_byte_to_at_keyboard(r: &mut idle::Resources, byte : u8) -> () {
             .at_inhibit(r.PORT_1_2.borrow(cs));
     });
 
-    delay(r, 10); // 100 microseconds
+    delay(r, us_to_ticks!(100));
 
     rtfm::atomic(|cs| {
         r.KEYBOARD_PINS.borrow(cs)
             .at_data.unset(r.PORT_1_2.borrow(cs));
     });
 
-    delay(r, 3); // 33 microseconds
+    delay(r, us_to_ticks!(33));
 
     rtfm::atomic(|cs| {
         let pins = r.KEYBOARD_PINS.borrow(cs);
@@ -322,7 +338,7 @@ fn send_byte_to_at_keyboard(r: &mut idle::Resources, byte : u8) -> () {
 
 fn toggle_leds(r: &mut idle::Resources, mask : u8) -> () {
     send_byte_to_at_keyboard(r, 0xED);
-    delay(r, 100);
+    delay(r, us_to_ticks!(1000));
     send_byte_to_at_keyboard(r, mask);
 }
 
