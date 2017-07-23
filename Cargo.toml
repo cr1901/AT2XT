@@ -3,6 +3,9 @@ name = "at2xt"
 version = "2.0.0"
 authors = ["William D. Jones <thor0505@comcast.net>"]
 
+[features]
+use-timer = []
+
 [dependencies.bit_reverse]
 version = "0.1.7"
 default_features = false

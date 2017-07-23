@@ -29,6 +29,7 @@ use driver::KeyboardPins;
 static HOST_MODE : AtomicBool = AtomicBool::new(false);
 static DEVICE_ACK : AtomicBool = AtomicBool::new(false);
 
+#[cfg(not(feature = "use-timer"))]
 app! {
     device: msp430g2211,
 
@@ -50,11 +51,44 @@ app! {
     },
 }
 
+#[cfg(feature = "use-timer")]
+app! {
+    device: msp430g2211,
 
-/* interrupt!(TIMERA0, timer0_handler);
-fn timer0_handler() {
-    // you can do something here
-} */
+    idle: {
+        resources: [KEYBOARD_PINS, TIMER_A2, TIMEOUT, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT],
+    },
+
+    resources: {
+        static TIMEOUT : bool = false;
+        static IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
+        static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
+        static KEY_IN : KeyIn = KeyIn::new();
+        static KEY_OUT : KeyOut = KeyOut::new();
+    },
+
+    tasks: {
+        PORT1: {
+            resources: [KEYBOARD_PINS, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT],
+        },
+
+        TIMERA0: {
+            resources: [TIMER_A2, TIMEOUT],
+        }
+    },
+}
+
+
+#[cfg(feature = "use-timer")]
+task!(TIMERA0, timer0_handler);
+#[cfg(feature = "use-timer")]
+fn timer0_handler(mut r: TIMERA0::Resources) {
+    let timer = r.TIMER_A2;
+    **r.TIMEOUT = false;
+
+    timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
+    timer.tacctl0.write(|w| w.ccifg().clear_bit());
+}
 
 
 task!(PORT1, porta_handler);
@@ -114,6 +148,14 @@ fn init(p: init::Peripherals, r: init::Resources) {
     p.SYSTEM_CLOCK.bcsctl1.write(|w| w.xt2off().set_bit()
         .rsel3().set_bit()); // XT2 off, Range Select 7.
     p.SYSTEM_CLOCK.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4.
+
+    #[cfg(feature = "use-timer")]
+    {
+        p.TIMER_A2.taccr0.write(|w| unsafe { w.bits(0x0000) });
+        p.TIMER_A2.tactl.write(|w| w.tassel().tassel_2()
+            .id().id_2().mc().mc_1());
+        p.TIMER_A2.tacctl0.write(|w| w.ccie().set_bit());
+    }
 }
 
 fn idle(mut r: idle::Resources) -> ! {
@@ -190,7 +232,7 @@ pub fn send_xt_bit(r: &mut idle::Resources, bit : u8) -> () {
         pins.xt_clk.unset(port);
     });
 
-    delay(88); // 55 microseconds at 1.6 MHz
+    delay(r, 6); // 55 microseconds at 1.6 MHz
 
     rtfm::atomic(|cs| {
         r.KEYBOARD_PINS.borrow(cs)
@@ -250,14 +292,14 @@ fn send_byte_to_at_keyboard(r: &mut idle::Resources, byte : u8) -> () {
             .at_inhibit(r.PORT_1_2.borrow(cs));
     });
 
-    delay(160); // 100 microseconds
+    delay(r, 10); // 100 microseconds
 
     rtfm::atomic(|cs| {
         r.KEYBOARD_PINS.borrow(cs)
             .at_data.unset(r.PORT_1_2.borrow(cs));
     });
 
-    delay(53); // 33 microseconds
+    delay(r, 3); // 33 microseconds
 
     rtfm::atomic(|cs| {
         let pins = r.KEYBOARD_PINS.borrow(cs);
@@ -280,11 +322,13 @@ fn send_byte_to_at_keyboard(r: &mut idle::Resources, byte : u8) -> () {
 
 fn toggle_leds(r: &mut idle::Resources, mask : u8) -> () {
     send_byte_to_at_keyboard(r, 0xED);
-    delay(5000);
+    delay(r, 100);
     send_byte_to_at_keyboard(r, mask);
 }
 
-fn delay(n: u16) {
+#[cfg(not(feature = "use-timer"))]
+fn delay(r: &mut idle::Resources, n : u16) {
+    let _ = r;
     unsafe {
         asm!(r#"
 1:
@@ -292,4 +336,22 @@ fn delay(n: u16) {
     jne 1b
     "# :: "{r12}"(n) : "r12" : "volatile");
     }
+}
+
+#[cfg(feature = "use-timer")]
+fn delay(r: &mut idle::Resources, time : u16) {
+    start_timer(r, time);
+    while rtfm::atomic(|cs| { **r.TIMEOUT.borrow(cs) }) {
+
+    }
+}
+
+#[cfg(feature = "use-timer")]
+fn start_timer(r: &mut idle::Resources, time : u16) -> () {
+    rtfm::atomic(|cs| {
+        let timer = r.TIMER_A2.borrow(cs);
+        **r.TIMEOUT.borrow_mut(cs) = false;
+        timer.taccr0.write(|w| unsafe { w.bits(time) });
+        timer.tacctl0.write(|w| w.ccie().clear_bit());
+    })
 }
