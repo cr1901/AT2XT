@@ -8,9 +8,8 @@ version = "0.1.7"
 default_features = false
 
 [dependencies.msp430-rt]
-git = "https://github.com/pftbest/msp430-rt"
-features = ["abort-on-panic"]
 version = "0.1.0"
+features = ["abort-on-panic"]
 
 [dependencies.msp430g2211]
 git = "https://github.com/cr1901/msp430g2211"
