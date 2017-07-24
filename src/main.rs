@@ -42,6 +42,8 @@ macro_rules! us_to_ticks {
 }
 
 
+#[cfg(feature = "use-timer")]
+static TIMEOUT : AtomicBool = AtomicBool::new(false);
 static HOST_MODE : AtomicBool = AtomicBool::new(false);
 static DEVICE_ACK : AtomicBool = AtomicBool::new(false);
 
@@ -72,11 +74,10 @@ app! {
     device: msp430g2211,
 
     idle: {
-        resources: [KEYBOARD_PINS, TIMER_A2, TIMEOUT, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT],
+        resources: [KEYBOARD_PINS, TIMER_A2, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT],
     },
 
     resources: {
-        static TIMEOUT : bool = false;
         static IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
         static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
         static KEY_IN : KeyIn = KeyIn::new();
@@ -89,7 +90,7 @@ app! {
         },
 
         TIMERA0: {
-            resources: [TIMER_A2, TIMEOUT],
+            resources: [TIMER_A2],
         }
     },
 }
@@ -100,7 +101,7 @@ task!(TIMERA0, timer0_handler);
 #[cfg(feature = "use-timer")]
 fn timer0_handler(mut r: TIMERA0::Resources) {
     let timer = r.TIMER_A2;
-    **r.TIMEOUT = true;
+    TIMEOUT.store(true);
 
     // Writing 0x0000 stops Timer in MC1.
     timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
@@ -360,7 +361,7 @@ fn delay(r: &mut idle::Resources, n : u16) {
 #[cfg(feature = "use-timer")]
 fn delay(r: &mut idle::Resources, time : u16) {
     start_timer(r, time);
-    while !rtfm::atomic(|cs| { **r.TIMEOUT.borrow(cs) }) {
+    while !TIMEOUT.load() {
 
     }
 }
@@ -369,7 +370,7 @@ fn delay(r: &mut idle::Resources, time : u16) {
 fn start_timer(r: &mut idle::Resources, time : u16) -> () {
     rtfm::atomic(|cs| {
         let timer = r.TIMER_A2.borrow(cs);
-        **r.TIMEOUT.borrow_mut(cs) = false;
+        TIMEOUT.store(false);
         timer.taccr0.write(|w| unsafe { w.bits(time) });
     })
 }
