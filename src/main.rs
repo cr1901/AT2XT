@@ -338,7 +338,7 @@ fn send_byte_to_at_keyboard(r: &mut idle::Resources, byte : u8) -> () {
 
 fn toggle_leds(r: &mut idle::Resources, mask : u8) -> () {
     send_byte_to_at_keyboard(r, 0xED);
-    delay(r, us_to_ticks!(1000));
+    delay(r, us_to_ticks!(3000));
     send_byte_to_at_keyboard(r, mask);
 }
 
