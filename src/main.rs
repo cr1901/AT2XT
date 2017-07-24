@@ -102,8 +102,11 @@ fn timer0_handler(mut r: TIMERA0::Resources) {
     let timer = r.TIMER_A2;
     **r.TIMEOUT = true;
 
+    // Writing 0x0000 stops Timer in MC1.
     timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
-    timer.tacctl0.write(|w| w.ccifg().clear_bit());
+    // CCIFG will be reset when entering interrupt; no need to clear it.
+    // Nesting is disabled, and chances of receiving second CCIFG in the ISR
+    // are nonexistant.
 }
 
 
@@ -368,7 +371,5 @@ fn start_timer(r: &mut idle::Resources, time : u16) -> () {
         let timer = r.TIMER_A2.borrow(cs);
         **r.TIMEOUT.borrow_mut(cs) = false;
         timer.taccr0.write(|w| unsafe { w.bits(time) });
-        timer.tacctl0.write(|w| w.ccifg().clear_bit()
-            .ccie().set_bit());
     })
 }
