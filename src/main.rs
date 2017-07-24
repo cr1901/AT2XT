@@ -100,7 +100,7 @@ task!(TIMERA0, timer0_handler);
 #[cfg(feature = "use-timer")]
 fn timer0_handler(mut r: TIMERA0::Resources) {
     let timer = r.TIMER_A2;
-    **r.TIMEOUT = false;
+    **r.TIMEOUT = true;
 
     timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
     timer.tacctl0.write(|w| w.ccifg().clear_bit());
@@ -357,7 +357,7 @@ fn delay(r: &mut idle::Resources, n : u16) {
 #[cfg(feature = "use-timer")]
 fn delay(r: &mut idle::Resources, time : u16) {
     start_timer(r, time);
-    while rtfm::atomic(|cs| { **r.TIMEOUT.borrow(cs) }) {
+    while !rtfm::atomic(|cs| { **r.TIMEOUT.borrow(cs) }) {
 
     }
 }
