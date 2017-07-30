@@ -20,6 +20,7 @@ features = ["rt"]
 
 [dependencies.msp430-rtfm]
 git = "https://github.com/japaric/msp430-rtfm"
+rev = "4b485e61a5afd14c19e7a9b4d8f77eea747c2be5"
 
 [dependencies.msp430-atomic]
 git = "https://github.com/pftbest/msp430-atomic"
@@ -29,3 +30,6 @@ debug = true
 
 [profile.release]
 lto = true
+
+[replace]
+"https://github.com/japaric/rtfm-syntax#0.1.0" = { git = "https://github.com/japaric/rtfm-syntax", rev = "631e4b044481ae23e40951ebf707b02d44db9daf"}
