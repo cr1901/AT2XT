@@ -23,7 +23,7 @@ git = "https://github.com/japaric/msp430-rtfm"
 rev = "4b485e61a5afd14c19e7a9b4d8f77eea747c2be5"
 
 [dependencies.msp430-atomic]
-git = "https://github.com/pftbest/msp430-atomic"
+version = "0.1.0"
 
 [profile.dev]
 debug = true
