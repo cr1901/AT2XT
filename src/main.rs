@@ -147,7 +147,11 @@ fn porta_handler(mut r: PORT1::Resources) {
         if full {
             r.KEYBOARD_PINS.at_inhibit(r.PORT_1_2); // Ask keyboard to not send anything while processing keycode.
 
-            r.IN_BUFFER.put(r.KEY_IN.take().unwrap());
+            match r.KEY_IN.take() {
+                Some(k) => { r.IN_BUFFER.put(k); },
+                None => { abort(); },
+            }
+
             r.KEY_IN.clear();
 
             r.KEYBOARD_PINS.at_idle(r.PORT_1_2);
@@ -228,7 +232,10 @@ fn idle(mut r: idle::Resources) -> ! {
                     ProcReply::KeyboardReset
                 } else {
                     let mut bits_in = rtfm::atomic(|cs|{
-                        r.IN_BUFFER.borrow_mut(cs).take().unwrap()
+                        match r.IN_BUFFER.borrow_mut(cs).take() {
+                            Some(k) => { k },
+                            None => { abort(); },
+                        }
                     });
 
                     bits_in = bits_in & !(0x4000 + 0x0001); // Mask out start/stop bit.
