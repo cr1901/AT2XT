@@ -15,8 +15,8 @@ script:
   - make $TARGET
 cache:
   cargo: true
-#  directories:
-#    - $HOME/.xargo
+  directories:
+    - $HOME/.xargo
 #    - $PWD/msp430-gcc-6.4.0.32_linux64
 before_cache:
   - chmod -R a+r $HOME/.cargo
