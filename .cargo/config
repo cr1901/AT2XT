@@ -2,6 +2,7 @@
 rustflags = [
     "-C", "link-arg=-Tlink.x",
     "-C", "link-arg=-mmcu=msp430g2211",
+    "-C", "link-arg=-mcpu=msp430", # This didn't used to be required. 6.4.0 is broken.
     "-C", "link-arg=-nostartfiles",
     "-C", "link-arg=-lmul_none",
     "-C", "opt-level=s",
