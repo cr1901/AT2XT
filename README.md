@@ -1,4 +1,6 @@
 # AT-to-XT Keyboard Protocol Converter
+[![Build Status](https://travis-ci.org/cr1901/AT2XT.svg?branch=master)](https://travis-ci.org/cr1901/AT2XT)
+
 This repository provides the source, schematics, and Gerber files that converts
 the AT-keyboard protocol to the XT keyboard protocol. As XT keyboards are
 expensive (seriously, type in "PC XT keyboard" or "PC 5150 keyboard" in Ebay),
