@@ -6,21 +6,26 @@ authors = ["William D. Jones <thor0505@comcast.net>"]
 [features]
 use-timer = []
 
+[dependencies.msp430]
+version = "0.1.0"
+
 [dependencies.bit_reverse]
 version = "0.1.7"
 default_features = false
 
 [dependencies.msp430-rt]
-version = "0.1.0"
+git = "https://github.com/cr1901/msp430-rt"
+branch = "termination"
 features = ["abort-on-panic"]
 
 [dependencies.msp430g2211]
-version = "0.1.0"
+git = "https://github.com/cr1901/msp430g2211"
+branch = "termination"
 features = ["rt"]
 
 [dependencies.msp430-rtfm]
-git = "https://github.com/japaric/msp430-rtfm"
-rev = "4b485e61a5afd14c19e7a9b4d8f77eea747c2be5"
+git = "https://github.com/cr1901/msp430-rtfm"
+branch = "at2xt-pin"
 
 [dependencies.msp430-atomic]
 git = "https://github.com/pftbest/msp430-atomic"
@@ -29,7 +34,6 @@ git = "https://github.com/pftbest/msp430-atomic"
 debug = true
 
 [profile.release]
+codegen-units = 1
+incremental = false
 lto = true
-
-[replace]
-"https://github.com/japaric/rtfm-syntax#0.1.0" = { git = "https://github.com/japaric/rtfm-syntax", rev = "631e4b044481ae23e40951ebf707b02d44db9daf"}
