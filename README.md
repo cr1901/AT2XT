@@ -49,6 +49,42 @@ The current command to build is:
 over time, so I provide a Makefile as well: `make` to build, and `make prog`
 to program using a Launchpad, `mspdebug`, and Spy-Bi-Wire connections.
 
+### Dependencies Caveats
+#### Compiler/Dependency Mismatches
+As Rust the language evolves, certain features in `nightly` may be enabled
+which break old commits that once compiled. For example, a
+[ThinLTO bug](https://github.com/japaric/xargo/issues/158) in `rustc` ensured
+compilation for targets using an external assembler- including MSP430-
+was broken in `nightly` from August until January!
+
+I can give approximate ranges for which `nightlies` work with which range of
+commits, but because the functionality of the `nightly` I make no guarantees
+that previous commits will compile; using the correct compiler
+[may not solve](https://github.com/cr1901/msp430-rtfm/commit/f6163b7acaeb135e08af1491daded54057e0d59f)
+all dependency version mismatches in libraries whose public APIs are in flux
+
+_That said_, it was my intent when porting the code to Rust that tagged
+commits should be able to serve as an example of how to write bare-metal Rust
+applications using a variety of different code structures and varying number of
+external dependencies (see CHANGELOG.md). Previous versions should still be
+able to compile/function with a small to moderate amount of work
+(see "data layout" in Tags/Comparing Versions for an example).
+
+#### RTFM
+The most up-to-date version of the firmware uses the
+[Real Time For The Masses](http://www.rtfm-lang.org) (RTFM) Framework. RTFM has
+underwent various syntax changes for both the
+[Cortex M](https://github.com/japaric/cortex-m-rtfm) and
+[MSP430](https://github.com/japaric/msp430-rtfm) variants. However, due to
+[space concerns](https://github.com/japaric/cortex-m-rtfm/issues/41)
+with the most up-to-date version of the MSP430 RTFM implementation, AT2XT opts
+to use an earlier syntax of RTFM. Using up-to-date RTFM syntax/features is
+pending improvements in LLVM to convert runtime checks into compile time checks
+that thus do not take up space in the final binary. To avoid dependency problems
+for the time being, the variant of RTFM used is available
+[here](https://github.com/cr1901/msp430-rtfm/tree/at2xt-pin) under the
+`at2xt-pin` branch.
+
 ### Tags/Comparing Versions
 Tags to previous versions are included to compare the overhead of adding
 various abstractions and making the source code look more like an idiomatic
