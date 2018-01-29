@@ -170,7 +170,7 @@ crates to automate work I did manually.
 functionality, and thus removed.
 - Commented out code cleaned up (mostly no-longer relevant code).
 
-## [1.0.0] -
+## [1.0.0]
 ### Added
 - Pause/Break handling logic implemented, which must be handled specially.
 - First fully functional firmware. This initial release depends on very few
