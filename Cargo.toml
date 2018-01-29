@@ -28,7 +28,7 @@ git = "https://github.com/cr1901/msp430-rtfm"
 branch = "at2xt-pin"
 
 [dependencies.msp430-atomic]
-git = "https://github.com/pftbest/msp430-atomic"
+version = "0.1.0"
 
 [profile.dev]
 debug = true
