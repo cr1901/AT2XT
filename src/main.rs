@@ -6,6 +6,9 @@
 
 extern crate msp430;
 
+extern crate msp430_rt;
+use msp430_rt::abort;
+
 extern crate bit_reverse;
 use bit_reverse::BitwiseReverse;
 
@@ -382,13 +385,4 @@ fn start_timer(r: &mut idle::Resources, time : u16) -> () {
         TIMEOUT.store(false);
         timer.taccr0.write(|w| unsafe { w.bits(time) });
     })
-}
-
-
-// FIXME: Should not be in this crate, but codegen now generates this for unwraps.
-#[no_mangle]
-pub extern "C" fn abort() -> ! {
-    loop {
-        msp430::asm::barrier();
-    }
 }
