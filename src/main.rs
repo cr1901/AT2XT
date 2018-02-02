@@ -6,9 +6,6 @@
 
 extern crate msp430;
 
-extern crate msp430_rt;
-use msp430_rt::abort;
-
 extern crate bit_reverse;
 use bit_reverse::BitwiseReverse;
 
@@ -152,7 +149,7 @@ fn porta_handler(mut r: PORT1::Resources) {
 
             match r.KEY_IN.take() {
                 Some(k) => { r.IN_BUFFER.put(k); },
-                None => { abort(); },
+                None => { },
             }
 
             r.KEY_IN.clear();
@@ -237,7 +234,7 @@ fn idle(mut r: idle::Resources) -> ! {
                     let mut bits_in = rtfm::atomic(|cs|{
                         match r.IN_BUFFER.borrow_mut(cs).take() {
                             Some(k) => { k },
-                            None => { abort(); },
+                            None => { 0 },
                         }
                     });
 

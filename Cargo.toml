@@ -14,13 +14,11 @@ version = "0.1.7"
 default_features = false
 
 [dependencies.msp430-rt]
-git = "https://github.com/cr1901/msp430-rt"
-branch = "termination"
+version = "0.1.1"
 features = ["abort-on-panic"]
 
 [dependencies.msp430g2211]
-git = "https://github.com/cr1901/msp430g2211"
-branch = "termination"
+version = "0.1.1"
 features = ["rt"]
 
 [dependencies.msp430-rtfm]
