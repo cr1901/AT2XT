@@ -101,7 +101,7 @@ app! {
 #[cfg(feature = "use-timer")]
 task!(TIMERA0, timer0_handler);
 #[cfg(feature = "use-timer")]
-fn timer0_handler(mut r: TIMERA0::Resources) {
+fn timer0_handler(r: TIMERA0::Resources) {
     let timer = r.TIMER_A2;
     TIMEOUT.store(true);
 
@@ -114,7 +114,7 @@ fn timer0_handler(mut r: TIMERA0::Resources) {
 
 
 task!(PORT1, porta_handler);
-fn porta_handler(mut r: PORT1::Resources) {
+fn porta_handler(r: PORT1::Resources) {
     if HOST_MODE.load() {
         if !r.KEY_OUT.is_empty() {
             if r.KEY_OUT.shift_out() {
@@ -288,7 +288,7 @@ pub fn send_byte_to_pc(r: &mut idle::Resources, mut byte : u8) -> () {
     send_xt_bit(r, 1);
 
     for _ in 0..8 {
-        send_xt_bit(r, (byte & 0x01)); /* Send data... */
+        send_xt_bit(r, byte & 0x01); /* Send data... */
 		byte = byte >> 1;
     }
 
@@ -299,7 +299,7 @@ pub fn send_byte_to_pc(r: &mut idle::Resources, mut byte : u8) -> () {
 
 fn send_byte_to_at_keyboard(r: &mut idle::Resources, byte : u8) -> () {
     rtfm::atomic(|cs| {
-        let mut key_out = r.KEY_OUT.borrow_mut(cs);
+        let key_out = r.KEY_OUT.borrow_mut(cs);
         key_out.put(byte).unwrap();
         // Safe outside of critical section: As long as HOST_MODE is
         // not set, it's not possible for the interrupt
