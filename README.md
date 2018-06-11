@@ -7,7 +7,7 @@ expensive (seriously, type in "PC XT keyboard" or "PC 5150 keyboard" in Ebay),
 this provides a cheaper alternative for someone willing to wait for PCB and
 parts. This circuit supports 101-key extended keyboards using the XT protocol,
 but older pre-386 systems may not know how to handle extended keys. The
-extended keycodes are based on a document from Microsoft that includes XT
+extended keycodes are based on a [document](https://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/scancode.doc) from Microsoft that includes XT
 keycodes for compatibility.
 
 ## Rust Source
