@@ -3,7 +3,6 @@
 #![feature(proc_macro)]
 #![feature(abi_msp430_interrupt)]
 #![feature(const_fn)]
-#![feature(proc_macro_gen)]
 
 extern crate msp430;
 
