@@ -1,6 +1,5 @@
 #![no_std]
 #![feature(asm)]
-#![feature(proc_macro)]
 #![feature(abi_msp430_interrupt)]
 #![feature(const_fn)]
 
