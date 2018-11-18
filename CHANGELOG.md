@@ -11,6 +11,58 @@ as optimizations, bugs, and code cleanup are pooled into minor releases.
 # AT2XT Firmware
 ## [Unreleased]
 
+## [2.2.0]
+The following is a "cleanup" release. Nightly Rust did not work properly on
+msp430 from approx
+[July 7, 2018](https://travis-ci.org/cr1901/AT2XT/builds/401135317) to
+[Oct 31, 2018](https://travis-ci.org/cr1901/AT2XT/builds/448735034).
+
+In this  time frame, `rustc` learned to shave 40 or so bytes off the final
+binary in `-Os`! Contrast to
+[July 6, 2018](https://travis-ci.org/cr1901/AT2XT/builds/400722102) build.
+
+Additional changes, which are found in the
+[commit history](https://github.com/cr1901/AT2XT/compare/v2.1.0...v2.2.0),
+include keeping AT2XT up to date with the enabled/disabled features of the
+nightly compiler _at the time_. Some of these changes, such as the
+`proc_macro_gen` feature gate, appeared _and_ disappeared between [2.1.0]
+and [2.2.0].
+
+### Added
+- Travis CI [support](https://travis-ci.org/cr1901/AT2XT).
+- Various README.md improvements.
+- Do not depend on [msp430-rt]'s `panic_implementation`; it is set for
+removal (and `panic_implementation` does not exist in recent nightlies).
+Instead, since `panic_handler` is stable, we provide our own implementation.
+- Support version `6.4.0` of `msp430-elf-gcc`.
+
+### Fixed
+- Fix multiple warnings, particularly of the following types:
+  - Unnecessary mutability
+  - Unnecessary parentheses
+
+### Changed
+- Use [msp430-atomic] crate available on
+[crates.io](https://crates.io/crates/msp430-atomic).
+- Output `msp430-elf-readelf` symbols in wide format for better debugging.
+- [msp430-rtfm] syntax/semantics changed in a manner that significantly
+increased code size. Although the
+bug has since been
+[fixed](https://github.com/japaric/cortex-m-rtfm/issues/41), there has not
+been much progress in checking that the fix works on msp430. Instead for now,
+we pin AT2XT to a [known working]
+(https://github.com/cr1901/msp430-rtfm/tree/at2xt-pin) version of
+[msp430-rtfm].
+- Remove unsafety in `keymap` module, now that `rustc` will correctly remove
+bounds check and/or not bring in panic strings (I haven't checked).
+- LLVM misoptimizes calls to `Pin::bitmask()` in some cases; they aren't
+treated as a function returning a compile-time constant. Provide a
+workaround using `const`.
+
+### Removed
+- All uses of `Option::unwrap()`; as of before Jan 28, 2018, they add strings
+to the binary which AT2XT can't display.
+
 ## [2.1.0]
 ### Added
 - Firmware can now be built using `TIMERA` for delay loops instead of a
@@ -80,7 +132,7 @@ The last commit before the target swap generated an equivalent binary (at
 the time) for reproducibility.
 - Interrupt handlers are provided using [msp430-rt] API instead of using
 `link_section` attribute.
-- `memcpy` and `memset` are now provided by [compiler_builtins], a `libgcc`/
+- `memcpy` and `memset` are now provided by [compiler-builtins], a `libgcc`/
 `libcompiler_rt` helper crate.
 
 ### Removed
@@ -90,7 +142,7 @@ No need to call [r0] directly.
 - TI linker script proper no longer necessary, as [msp430-rt] provides
 a linker script with everything except the memory map (`memory.x`)
 - `libc` no longer linked against directly, thus removed as link library.
-[compiler_builtins] still will emit `memcpy`/`memset`, however.
+[compiler-builtins] still will emit `memcpy`/`memset`, however.
 
 ## [1.1.0]
 Most space savings were checked a few weeks after [1.0.0]'s release with a more
@@ -281,14 +333,15 @@ should not be manufactured. A new design will follow shortly.
 
 [bit_reverse]: https://github.com/EugeneGonzalez/bit_reverse
 [r0]: https://github.com/japaric/r0
-[msp430]: https://github.com/pftbest/msp430
-[msp430-rt]: https://github.com/pftbest/msp430-rt
+[msp430]: https://github.com/rust-embedded/msp430
+[msp430-rt]: https://github.com/rust-embedded/msp430-rt
 [msp430g2211]: https://github.com/cr1901/msp430g2211
 [msp430-rtfm]: https://github.com/japaric/msp430-rtfm
 [msp430_atomic]: https://github.com/pftbest/msp430-atomic
 [compiler-builtins]: https://github.com/rust-lang-nursery/compiler-builtins
 
-[Unreleased]: https://github.com/cr1901/AT2XT/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/cr1901/AT2XT/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/cr1901/AT2XT/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/cr1901/AT2XT/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/cr1901/AT2XT/compare/v1.3.0...v2.0.0
 [1.3.0]: https://github.com/cr1901/AT2XT/compare/v1.2.0...v1.3.0
