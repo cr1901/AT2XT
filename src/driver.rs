@@ -8,7 +8,7 @@ macro_rules! clear_bits_with_mask {
     ($r:ident, $w:ident, $m:expr) => { $w.bits($r.bits() & !$m) };
 }
 
-pub const AT_CLK : u8 = (1 << 0);
+const AT_CLK : u8 = (1 << 0);
 
 pub struct KeyboardPins {
     pub at_clk : Pin,
@@ -41,9 +41,6 @@ impl KeyboardPins {
         p.p1ifg.modify(|r, w| clear_bits_with_mask!(r, w, AT_CLK));
         p.p1ies.modify(|r, w| set_bits_with_mask!(r, w, AT_CLK));
         p.p1ie.modify(|r, w| set_bits_with_mask!(r, w, AT_CLK));
-        // p.p1ifg.modify(|r, w| clear_bits_with_mask!(r, w, self.at_clk.bitmask()));
-        // p.p1ies.modify(|r, w| set_bits_with_mask!(r, w, self.at_clk.bitmask()));
-        // p.p1ie.modify(|r, w| set_bits_with_mask!(r, w, self.at_clk.bitmask()));
     }
 
     pub fn disable_at_clk_int(&self, p : &msp430g2211::PORT_1_2) -> () {
