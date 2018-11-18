@@ -12,9 +12,8 @@ mod keymap {
     0x00,0x00,0x00,0x41];
 
     pub fn to_xt(at_in : u8) -> u8 {
-        let ptr = &KEYCODE_LUT[0] as * const u8;
         if at_in < 132 {
-            unsafe { *ptr.offset(at_in as isize) }
+            KEYCODE_LUT[at_in as usize]
         } else {
             0
         }
