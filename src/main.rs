@@ -3,8 +3,6 @@
 #![feature(abi_msp430_interrupt)]
 #![feature(const_fn)]
 
-use core::panic::PanicInfo;
-
 extern crate msp430;
 
 extern crate bit_reverse;
@@ -18,6 +16,8 @@ use rtfm::app;
 
 extern crate msp430_atomic;
 use msp430_atomic::AtomicBool;
+
+extern crate panic_msp430;
 
 mod keyfsm;
 use keyfsm::{Cmd, ProcReply, Fsm};
@@ -383,15 +383,4 @@ fn start_timer(r: &mut idle::Resources, time : u16) -> () {
         TIMEOUT.store(false);
         timer.taccr0.write(|w| unsafe { w.bits(time) });
     })
-}
-
-
-#[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    // Disable interrupts to prevent further damage.
-    ::msp430::interrupt::disable();
-    loop {
-        // Prevent optimizations that can remove this loop.
-        ::msp430::asm::barrier();
-    }
 }
