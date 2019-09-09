@@ -1,7 +1,6 @@
 #![no_std]
 #![feature(asm)]
 #![feature(abi_msp430_interrupt)]
-#![feature(const_fn)]
 
 extern crate msp430;
 
