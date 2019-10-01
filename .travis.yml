@@ -2,17 +2,18 @@ language: rust
 rust:
   - nightly
 env:
-  - TARGET=all
+  - TARGET=default
   - TARGET=timer
 install:
   - cargo install --list | grep 'xargo' || cargo install xargo
+  - cargo install --list | grep 'just' || cargo install just
   - rustup component list | grep 'rust-src.*installed' || rustup component add rust-src
 before_script:
   - wget http://gopher.wdj-consulting.com:70/store/msp430-gcc-6.4.0.32_linux64.tar.bz2 -O /tmp/msp430-gcc.tar.b2
   - tar -xvjf /tmp/msp430-gcc.tar.b2
   - export PATH=$PATH:$PWD/msp430-gcc-6.4.0.32_linux64/bin
 script:
-  - make $TARGET
+  - just $TARGET
 cache:
   cargo: false
 #  directories:
