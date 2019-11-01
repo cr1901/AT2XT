@@ -14,9 +14,7 @@ version = "0.1.7"
 default_features = false
 
 [dependencies.msp430-rt]
-# Test that removed abort-on-panic feature still works.
-git = "https://github.com/rust-embedded/msp430-rt"
-rev = "a39c6c3"
+version = "0.1.4"
 
 [dependencies.msp430g2211]
 version = "0.1.4"
@@ -40,7 +38,3 @@ debug = true
 codegen-units = 1
 incremental = false
 lto = true
-
-[patch.crates-io]
-# For MSP430G2211 crate for now.
-msp430-rt = { git = "https://github.com/rust-embedded/msp430-rt", rev = "a39c6c3" }
