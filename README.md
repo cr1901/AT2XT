@@ -11,8 +11,8 @@ expensive (seriously, type in "PC XT keyboard" or "PC 5150 keyboard" in Ebay),
 this provides a cheaper alternative for someone willing to wait for PCB and
 parts. This circuit supports 101-key extended keyboards using the XT protocol,
 but older pre-386 systems may not know how to handle extended keys. The
-extended keycodes are based on a [document](https://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/scancode.doc) from Microsoft that includes XT
-keycodes for compatibility.
+extended keycodes are based on a [document](https://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/scancode.doc)
+from Microsoft that includes XT keycodes for compatibility.
 
 ## Rust Source
 As an experiment to test the MSP430 Rust/LLVM backend, the current source has
@@ -50,8 +50,15 @@ be required for the foreseeable future for the linker.
 ### Building
 The current command to build is:
 `xargo build --release --target=msp430-none-elf`. This command has changed
-over time, so I provide a Makefile as well: `make` to build, and `make prog`
-to program using a Launchpad, `mspdebug`, and Spy-Bi-Wire connections.
+over time, so I provide a [Justfile](https://github.com/casey/just) as well.
+Run `just --list` for a list of avilable recipes. The build can be further
+customized by setting the following variables on the `just` command line
+(e.g. `just MODE=release`):
+
+* `MODE`: `release` or `debug`. Defaults to `release`, which _must_ be paired
+  with the `--release` option to `xargo`.
+* `XFLAGS`: Flags to pass to `xargo`. Defaults to `--release`; unset if doing
+  a `debug` build.
 
 ### Dependencies Caveats
 #### Compiler/Dependency Mismatches
