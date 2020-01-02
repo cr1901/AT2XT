@@ -32,9 +32,14 @@ version = "0.1.0"
 version = "0.1.0"
 
 [profile.dev]
-debug = true
+debug-assertions = false
+overflow-checks = false
+codegen-units = 1
+opt-level = "s"
+incremental = false
+lto = "fat"
 
 [profile.release]
 codegen-units = 1
-incremental = false
-lto = true
+opt-level = "s"
+lto = "fat"
