@@ -191,7 +191,7 @@ fn idle(mut r: idle::Resources) -> ! {
     let mut loop_reply : ProcReply = ProcReply::init();
     let mut fsm_driver : Fsm = Fsm::start();
 
-    'get_command: loop {
+    loop {
         // Run state machine/send reply. Receive new cmd.
         loop_cmd = fsm_driver.run(&loop_reply).unwrap();
 
@@ -215,7 +215,7 @@ fn idle(mut r: idle::Resources) -> ! {
                 // the keyboard to send data to the micro at the same time. To keep control flow simple,
                 // the micro will only respond to host PC acknowledge requests if its idle.
                 let mut xt_reset : bool = false;
-                'idle: while rtfm::atomic(|cs| { r.IN_BUFFER.borrow(cs).is_empty() }) {
+                while rtfm::atomic(|cs| { r.IN_BUFFER.borrow(cs).is_empty() }) {
                     // If host computer wants to reset
                     if rtfm::atomic(|cs| {
                         r.KEYBOARD_PINS.borrow(cs)

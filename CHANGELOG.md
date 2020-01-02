@@ -11,6 +11,30 @@ as optimizations, bugs, and code cleanup are pooled into minor releases.
 # AT2XT Firmware
 ## [Unreleased]
 
+## [2.3.0]
+Version [2.3.0] is a stopgap release meant to provide a clean break between
+the old unsound `borrow`-based peripherals API and the newer `take`-based
+[singleton API](https://blog.japaric.io/brave-new-io/). Switching AT2XT to the
+`take`-based API (_without RTFM for now_) warrants a major version bump.
+
+### Changed
+- The [panic_msp430] crate now provides the `panic_handler` language item.
+  We have removed our own implementation of the same.
+- `cargo` profile configuration options were simplified so that
+  [default](https://doc.rust-lang.org/cargo/reference/manifest.html) values
+  are now implicit. This aids in simplifying the `Cargo.toml` of future
+  projects.
+
+### Removed
+- `Makefile` was removed in favor of using the Rust-based [just](https://github.com/casey/just)
+  command runner.
+- `.cargo/config` rustflags that appear to have no effect on binary contents
+  _or can be provided by the `cargo` manifest_ were removed. This aids in
+  simplifying the `.cargo/config` of future projects.
+- `const_fn` feature was stabilized, so corresponding feature attribute is no
+  longer needed. _The only remaining unstable features are `asm` (for software
+  delay loops only) and `abi_msp430_interrupt`._
+
 ## [2.2.0]
 The following is a "cleanup" release. Nightly Rust did not work properly on
 msp430 from approx
@@ -338,9 +362,11 @@ should not be manufactured. A new design will follow shortly.
 [msp430g2211]: https://github.com/cr1901/msp430g2211
 [msp430-rtfm]: https://github.com/japaric/msp430-rtfm
 [msp430_atomic]: https://github.com/pftbest/msp430-atomic
+[panic_msp430]: https://github.com/YuhanLiin/panic-msp430
 [compiler-builtins]: https://github.com/rust-lang-nursery/compiler-builtins
 
-[Unreleased]: https://github.com/cr1901/AT2XT/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/cr1901/AT2XT/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/cr1901/AT2XT/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/cr1901/AT2XT/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/cr1901/AT2XT/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/cr1901/AT2XT/compare/v1.3.0...v2.0.0
