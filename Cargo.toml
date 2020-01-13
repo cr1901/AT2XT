@@ -2,34 +2,37 @@
 name = "at2xt"
 version = "2.3.0"
 authors = ["William D. Jones <thor0505@comcast.net>"]
+edition = "2018"
 
 [features]
 use-timer = []
 
+[dependencies.bare-metal]
+version = "0.2.0"
+
 [dependencies.msp430]
-version = "0.1.0"
+version = "0.2.0"
 
 [dependencies.bit_reverse]
 version = "0.1.7"
 default_features = false
 
 [dependencies.msp430-rt]
-version = "0.1.4"
+version = "0.2.0"
 
 [dependencies.msp430g2211]
-version = "0.1.4"
+version = "0.2.0"
 features = ["rt"]
-
-[dependencies.msp430-rtfm]
-# RTFM has changed a lot, pin to old version for now.
-git = "https://github.com/cr1901/msp430-rtfm"
-branch = "at2xt-pin"
 
 [dependencies.msp430-atomic]
 version = "0.1.0"
 
 [dependencies.panic-msp430]
-version = "0.1.0"
+version = "0.2.0"
+
+[dependencies.once_cell]
+version = "1.2.0"
+default_features = false
 
 [profile.dev]
 debug-assertions = false

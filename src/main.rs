@@ -1,22 +1,18 @@
+#![no_main]
 #![no_std]
 #![feature(asm)]
 #![feature(abi_msp430_interrupt)]
 
-extern crate msp430;
-
-extern crate bit_reverse;
-use bit_reverse::BitwiseReverse;
-
-extern crate msp430g2211;
-
-#[macro_use(task)]
-extern crate msp430_rtfm as rtfm;
-use rtfm::app;
-
-extern crate msp430_atomic;
-use msp430_atomic::AtomicBool;
-
 extern crate panic_msp430;
+
+use core::cell::{Cell, RefCell};
+use bare_metal::Mutex;
+use bit_reverse::BitwiseReverse;
+use msp430::interrupt as mspint;
+use msp430_rt::entry;
+use msp430g2211::{interrupt, Peripherals};
+use msp430_atomic::AtomicBool;
+use once_cell::unsync::OnceCell;
 
 mod keyfsm;
 use keyfsm::{Cmd, ProcReply, Fsm};
@@ -43,133 +39,117 @@ macro_rules! us_to_ticks {
     }
 }
 
+struct At2XtPeripherals {
+    port: msp430g2211::PORT_1_2,
+    timer: msp430g2211::TIMER_A2
+}
+
 
 #[cfg(feature = "use-timer")]
 static TIMEOUT : AtomicBool = AtomicBool::new(false);
 static HOST_MODE : AtomicBool = AtomicBool::new(false);
 static DEVICE_ACK : AtomicBool = AtomicBool::new(false);
 
-#[cfg(not(feature = "use-timer"))]
-app! {
-    device: msp430g2211,
-
-    idle: {
-        resources: [KEYBOARD_PINS, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT],
-    },
-
-    resources: {
-        static IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
-        static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
-        static KEY_IN : KeyIn = KeyIn::new();
-        static KEY_OUT : KeyOut = KeyOut::new();
-    },
-
-    tasks: {
-        PORT1: {
-            resources: [KEYBOARD_PINS, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT],
-        },
-    },
-}
-
-#[cfg(feature = "use-timer")]
-app! {
-    device: msp430g2211,
-
-    idle: {
-        resources: [KEYBOARD_PINS, TIMER_A2, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT],
-    },
-
-    resources: {
-        static IN_BUFFER : KeycodeBuffer = KeycodeBuffer::new();
-        static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
-        static KEY_IN : KeyIn = KeyIn::new();
-        static KEY_OUT : KeyOut = KeyOut::new();
-    },
-
-    tasks: {
-        PORT1: {
-            resources: [KEYBOARD_PINS, PORT_1_2, IN_BUFFER, KEY_IN, KEY_OUT],
-        },
-
-        TIMERA0: {
-            resources: [TIMER_A2],
-        }
-    },
-}
+static IN_BUFFER : Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
+static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
+static KEY_IN : Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
+static KEY_OUT : Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
+static PERIPHERALS : Mutex<OnceCell<At2XtPeripherals>> = Mutex::new(OnceCell::new());
 
 
 #[cfg(feature = "use-timer")]
-task!(TIMERA0, timer0_handler);
-#[cfg(feature = "use-timer")]
-fn timer0_handler(r: TIMERA0::Resources) {
-    let timer = r.TIMER_A2;
+#[interrupt]
+fn TIMERA0() {
     TIMEOUT.store(true);
 
-    // Writing 0x0000 stops Timer in MC1.
-    timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
-    // CCIFG will be reset when entering interrupt; no need to clear it.
-    // Nesting is disabled, and chances of receiving second CCIFG in the ISR
-    // are nonexistant.
+    mspint::free(|cs| {
+        let p = PERIPHERALS.borrow(cs).get().unwrap();
+        // Writing 0x0000 stops Timer in MC1.
+        p.timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
+        // CCIFG will be reset when entering interrupt; no need to clear it.
+        // Nesting is disabled, and chances of receiving second CCIFG in the ISR
+        // are nonexistant. */
+    });
 }
 
 
-task!(PORT1, porta_handler);
-fn porta_handler(r: PORT1::Resources) {
-    if HOST_MODE.load() {
-        if !r.KEY_OUT.is_empty() {
-            if r.KEY_OUT.shift_out() {
-                r.KEYBOARD_PINS.at_data.set(&r.PORT_1_2);
-            } else{
-                r.KEYBOARD_PINS.at_data.unset(&r.PORT_1_2);
+#[interrupt]
+fn PORT1() {
+    mspint::free(|cs| {
+        let pins = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
+        if HOST_MODE.load() {
+            let mut keyout = KEY_OUT.borrow(cs).get();
+
+            if keyout.is_empty() {
+                if keyout.shift_out() {
+                    KEYBOARD_PINS.at_data.set(pins);
+                } else{
+                    KEYBOARD_PINS.at_data.unset(pins);
+                }
+
+                // Immediately after sending out the Stop Bit, we should release the lines.
+                if keyout.is_empty() {
+                    KEYBOARD_PINS.at_idle(pins);
+                }
+            } else {
+                // TODO: Is it possible to get a spurious clock interrupt and
+                // thus skip this logic?
+                if KEYBOARD_PINS.at_data.is_unset(pins) {
+                    DEVICE_ACK.store(true);
+                    keyout.clear();
+                }
             }
 
-            // Immediately after sending out the Stop Bit, we should release the lines.
-            if r.KEY_OUT.is_empty() {
-                r.KEYBOARD_PINS.at_idle(r.PORT_1_2);
-            }
+            KEY_OUT.borrow(cs).set(keyout);
+            KEYBOARD_PINS.clear_at_clk_int(pins);
         } else {
-            if r.KEYBOARD_PINS.at_data.is_unset(r.PORT_1_2) {
-                DEVICE_ACK.store(true);
-                r.KEY_OUT.clear();
+            let full : bool;
+            let mut keyin = KEY_IN.borrow(cs).get();
+
+            // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
+            // sync for nested interrupts while not giving up safety?
+            // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
+            keyin.shift_in(KEYBOARD_PINS.at_data.is_set(pins));
+            full = keyin.is_full();
+
+            if full {
+                KEYBOARD_PINS.at_inhibit(pins); // Ask keyboard to not send anything while processing keycode.
+
+                match keyin.take() {
+                    Some(k) => {
+                        match IN_BUFFER.borrow(cs).try_borrow_mut() {
+                            Ok(mut b) => { b.put(k) },
+                            Err(_) => { }
+                        }
+                    },
+                    None => { },
+                }
+
+                keyin.clear();
+
+                KEYBOARD_PINS.at_idle(pins);
             }
+
+            KEY_IN.borrow(cs).set(keyin);
+            KEYBOARD_PINS.clear_at_clk_int(pins);
         }
-
-        r.KEYBOARD_PINS.clear_at_clk_int(r.PORT_1_2);
-    } else {
-        let full : bool;
-
-        // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
-        // sync for nested interrupts while not giving up safety?
-        // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-        r.KEY_IN.shift_in(r.KEYBOARD_PINS.at_data.is_set(r.PORT_1_2));
-        full = r.KEY_IN.is_full();
-
-        if full {
-            r.KEYBOARD_PINS.at_inhibit(r.PORT_1_2); // Ask keyboard to not send anything while processing keycode.
-
-            match r.KEY_IN.take() {
-                Some(k) => { r.IN_BUFFER.put(k); },
-                None => { },
-            }
-
-            r.KEY_IN.clear();
-
-            r.KEYBOARD_PINS.at_idle(r.PORT_1_2);
-        }
-
-        r.KEYBOARD_PINS.clear_at_clk_int(r.PORT_1_2);
-    }
+    });
 }
 
 
-fn init(p: init::Peripherals, r: init::Resources) {
+fn init() {
+    let p = Peripherals::take().unwrap();
+
     p.WATCHDOG_TIMER.wdtctl.write(|w| unsafe {
         const PASSWORD: u16 = 0x5A00;
         w.bits(PASSWORD).wdthold().set_bit()
     });
 
     // Make port idle
-    r.KEYBOARD_PINS.idle(p.PORT_1_2);
+    mspint::free(|cs| {
+        KEYBOARD_PINS.idle(&p.PORT_1_2);
+    });
 
     p.SYSTEM_CLOCK.bcsctl1.write(|w| w.xt2off().set_bit()
         .rsel3().set_bit()); // XT2 off, Range Select 7.
@@ -182,10 +162,24 @@ fn init(p: init::Peripherals, r: init::Resources) {
             .id().id_2().mc().mc_1());
         p.TIMER_A2.tacctl0.write(|w| w.ccie().set_bit());
     }
+
+    mspint::free(|cs| {
+        let shared = At2XtPeripherals {
+            port : p.PORT_1_2,
+            timer: p.TIMER_A2
+        };
+
+        PERIPHERALS.borrow(cs).set(shared).ok().unwrap();
+    });
+
+    unsafe { mspint::enable(); }
 }
 
-fn idle(mut r: idle::Resources) -> ! {
-    send_byte_to_at_keyboard(&mut r, 0xFF);
+#[entry]
+fn main() -> ! {
+    init();
+
+    send_byte_to_at_keyboard(0xFF);
 
     let mut loop_cmd : Cmd;
     let mut loop_reply : ProcReply = ProcReply::init();
@@ -197,17 +191,25 @@ fn idle(mut r: idle::Resources) -> ! {
 
         loop_reply = match loop_cmd {
             Cmd::ClearBuffer => {
-                rtfm::atomic(|cs| {
-                    r.IN_BUFFER.borrow_mut(cs).flush();
+                mspint::free(|cs| {
+                    // XXX: IN_BUFFER.borrow(cs).borrow_mut() and
+                    // IN_BUFFER.borrow(cs).try_borrow_mut().unwrap()
+                    // bring in dead formatting code! Use explicit
+                    // match for now and handle errors by doing nothing.
+
+                    match IN_BUFFER.borrow(cs).try_borrow_mut() {
+                        Ok(mut b) => { b.flush() },
+                        Err(_) => { }
+                    }
                 });
                 ProcReply::ClearedBuffer
             },
             Cmd::ToggleLed(m) => {
-                toggle_leds(&mut r, m);
+                toggle_leds(m);
                 ProcReply::LedToggled(m)
             }
             Cmd::SendXTKey(k) => {
-                send_byte_to_pc(&mut r, k);
+                send_byte_to_pc(k);
                 ProcReply::SentKey(k)
             },
             Cmd::WaitForKey => {
@@ -215,14 +217,21 @@ fn idle(mut r: idle::Resources) -> ! {
                 // the keyboard to send data to the micro at the same time. To keep control flow simple,
                 // the micro will only respond to host PC acknowledge requests if its idle.
                 let mut xt_reset : bool = false;
-                while rtfm::atomic(|cs| { r.IN_BUFFER.borrow(cs).is_empty() }) {
+                while mspint::free(|cs| {
+                    match IN_BUFFER.borrow(cs).try_borrow_mut() {
+                        Ok(b) => { b.is_empty() },
+                        Err(_) => { true }
+                    }
+                }) {
                     // If host computer wants to reset
-                    if rtfm::atomic(|cs| {
-                        r.KEYBOARD_PINS.borrow(cs)
-                            .xt_sense.is_unset(r.PORT_1_2.borrow(cs))
+                    if mspint::free(|cs| {
+                        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
+                        KEYBOARD_PINS
+                            .xt_sense.is_unset(port)
                     }) {
-                        send_byte_to_at_keyboard(&mut r, 0xFF);
-                        send_byte_to_pc(&mut r, 0xAA);
+                        send_byte_to_at_keyboard(0xFF);
+                        send_byte_to_pc(0xAA);
                         xt_reset = true;
                         break;
                     }
@@ -231,10 +240,15 @@ fn idle(mut r: idle::Resources) -> ! {
                 if xt_reset {
                     ProcReply::KeyboardReset
                 } else {
-                    let mut bits_in = rtfm::atomic(|cs|{
-                        match r.IN_BUFFER.borrow_mut(cs).take() {
-                            Some(k) => { k },
-                            None => { 0 },
+                    let mut bits_in = mspint::free(|cs|{
+                        match IN_BUFFER.borrow(cs).try_borrow_mut() {
+                            Ok(mut b) => {
+                                match b.take() {
+                                    Some(k) => { k },
+                                    None => { 0 },
+                                }
+                            },
+                            Err(_) => { 0 },
                         }
                     });
 
@@ -248,97 +262,114 @@ fn idle(mut r: idle::Resources) -> ! {
     }
 }
 
-pub fn send_xt_bit(r: &mut idle::Resources, bit : u8) -> () {
-    rtfm::atomic(|cs| {
-        let pins = r.KEYBOARD_PINS.borrow(cs);
-        let port = r.PORT_1_2.borrow(cs);
+pub fn send_xt_bit(bit : u8) -> () {
+    mspint::free(|cs| {
+        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
         if bit == 1 {
-            pins.xt_data.set(port);
+            KEYBOARD_PINS.xt_data.set(port);
         } else {
-            pins.xt_data.unset(port);
+            KEYBOARD_PINS.xt_data.unset(port);
         }
 
-        pins.xt_clk.unset(port);
+        KEYBOARD_PINS.xt_clk.unset(port);
     });
 
-    delay(r, us_to_ticks!(55));
+    delay(us_to_ticks!(55));
 
-    rtfm::atomic(|cs| {
-        r.KEYBOARD_PINS.borrow(cs)
-            .xt_clk.set(r.PORT_1_2.borrow(cs));
+    mspint::free(|cs| {
+        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
+        KEYBOARD_PINS.xt_clk.set(port);
     });
 }
 
-pub fn send_byte_to_pc(r: &mut idle::Resources, mut byte : u8) -> () {
+pub fn send_byte_to_pc(mut byte : u8) -> () {
     // The host cannot send data; the only communication it can do with the micro is pull
     // the CLK (reset) and DATA (shift register full) low.
     // Wait for the host to release the lines.
 
-    while rtfm::atomic(|cs| {
-        let pins = r.KEYBOARD_PINS.borrow(cs);
-        let port = r.PORT_1_2.borrow(cs);
-        pins.xt_clk.is_unset(port) || pins.xt_data.is_unset(port)
+    while mspint::free(|cs| {
+        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
+        KEYBOARD_PINS.xt_clk.is_unset(port) || KEYBOARD_PINS.xt_data.is_unset(port)
     }) { }
 
-    rtfm::atomic(|cs| {
-        r.KEYBOARD_PINS.borrow(cs).xt_out(r.PORT_1_2.borrow(cs));
+    mspint::free(|cs| {
+        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
+        KEYBOARD_PINS.xt_out(port);
     });
 
-    send_xt_bit(r, 0);
-    send_xt_bit(r, 1);
+    send_xt_bit(0);
+    send_xt_bit(1);
 
     for _ in 0..8 {
-        send_xt_bit(r, byte & 0x01); /* Send data... */
+        send_xt_bit(byte & 0x01); /* Send data... */
 		byte = byte >> 1;
     }
 
-    rtfm::atomic(|cs| {
-        r.KEYBOARD_PINS.borrow(cs).xt_in(r.PORT_1_2.borrow(cs));
+    mspint::free(|cs| {
+        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
+        KEYBOARD_PINS.xt_in(port);
     });
 }
 
-fn send_byte_to_at_keyboard(r: &mut idle::Resources, byte : u8) -> () {
-    rtfm::atomic(|cs| {
-        let key_out = r.KEY_OUT.borrow_mut(cs);
-        key_out.put(byte).unwrap();
+fn send_byte_to_at_keyboard(byte : u8) -> () {
+    mspint::free(|cs| {
+        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+        let mut key_out = KEY_OUT.borrow(cs).get();
+
+        // XXX: key_out.put(byte).unwrap() is misoptimized
+        // and brings in unused panic strings.
+        match key_out.put(byte) {
+            Ok(_) => { },
+            Err(_) => { }
+            // Err(_) => { panic!() } // Even this brings in unused panic strings.
+        }
+
         // Safe outside of critical section: As long as HOST_MODE is
         // not set, it's not possible for the interrupt
         // context to touch this variable.
-        r.KEYBOARD_PINS.borrow(cs)
-            .disable_at_clk_int(r.PORT_1_2.borrow(cs));
+        KEY_OUT.borrow(cs).set(key_out);
+        KEYBOARD_PINS.disable_at_clk_int(port);
     });
 
     /* If/when timer int is enabled, this loop really needs to allow preemption during
     I/O read. Can it be done without overhead of CriticalSection? */
-    while rtfm::atomic(|cs| {
-        r.KEYBOARD_PINS.borrow(cs)
-            .at_clk.is_unset(r.PORT_1_2.borrow(cs))
+    while mspint::free(|cs| {
+        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
+        KEYBOARD_PINS.at_clk.is_unset(port)
     }) { }
 
 
-    rtfm::atomic(|cs| {
-        r.KEYBOARD_PINS.borrow(cs)
-            .at_inhibit(r.PORT_1_2.borrow(cs));
+    mspint::free(|cs| {
+        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
+        KEYBOARD_PINS.at_inhibit(port);
     });
 
-    delay(r, us_to_ticks!(100));
+    delay(us_to_ticks!(100));
 
-    rtfm::atomic(|cs| {
-        r.KEYBOARD_PINS.borrow(cs)
-            .at_data.unset(r.PORT_1_2.borrow(cs));
+    mspint::free(|cs| {
+        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
+        KEYBOARD_PINS.at_data.unset(port);
     });
 
-    delay(r, us_to_ticks!(33));
+    delay(us_to_ticks!(33));
 
-    rtfm::atomic(|cs| {
-        let pins = r.KEYBOARD_PINS.borrow(cs);
-        let port = r.PORT_1_2.borrow(cs);
-        pins.at_clk.set(port);
-        pins.at_clk.mk_in(port);
-        pins.clear_at_clk_int(port);
+    mspint::free(|cs| {
+        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
+        KEYBOARD_PINS.at_clk.set(port);
+        KEYBOARD_PINS.at_clk.mk_in(port);
+        KEYBOARD_PINS.clear_at_clk_int(port);
 
         unsafe {
-            pins.enable_at_clk_int(port);
+            KEYBOARD_PINS.enable_at_clk_int(port);
         }
         HOST_MODE.store(true);
         DEVICE_ACK.store(false);
@@ -349,15 +380,14 @@ fn send_byte_to_at_keyboard(r: &mut idle::Resources, byte : u8) -> () {
     HOST_MODE.store(false);
 }
 
-fn toggle_leds(r: &mut idle::Resources, mask : u8) -> () {
-    send_byte_to_at_keyboard(r, 0xED);
-    delay(r, us_to_ticks!(3000));
-    send_byte_to_at_keyboard(r, mask);
+fn toggle_leds(mask : u8) -> () {
+    send_byte_to_at_keyboard(0xED);
+    delay(us_to_ticks!(3000));
+    send_byte_to_at_keyboard(mask);
 }
 
 #[cfg(not(feature = "use-timer"))]
-fn delay(r: &mut idle::Resources, n : u16) {
-    let _ = r;
+fn delay(n : u16) {
     unsafe {
         asm!(r#"
 1:
@@ -368,17 +398,17 @@ fn delay(r: &mut idle::Resources, n : u16) {
 }
 
 #[cfg(feature = "use-timer")]
-fn delay(r: &mut idle::Resources, time : u16) {
-    start_timer(r, time);
+fn delay(time : u16) {
+    start_timer(time);
     while !TIMEOUT.load() {
 
     }
 }
 
 #[cfg(feature = "use-timer")]
-fn start_timer(r: &mut idle::Resources, time : u16) -> () {
-    rtfm::atomic(|cs| {
-        let timer = r.TIMER_A2.borrow(cs);
+fn start_timer(time : u16) -> () {
+    mspint::free(|cs| {
+        let timer = &PERIPHERALS.borrow(cs).get().unwrap().timer;
         TIMEOUT.store(false);
         timer.taccr0.write(|w| unsafe { w.bits(time) });
     })
