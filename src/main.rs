@@ -140,10 +140,7 @@ fn init() {
         w.bits(PASSWORD).wdthold().set_bit()
     });
 
-    // Make port idle
-    mspint::free(|cs| {
-        KEYBOARD_PINS.idle(&p.PORT_1_2);
-    });
+    KEYBOARD_PINS.idle(&p.PORT_1_2);
 
     p.SYSTEM_CLOCK
         .bcsctl1
