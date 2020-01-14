@@ -73,33 +73,33 @@ fn TIMERA0() {
 #[interrupt]
 fn PORT1() {
     mspint::free(|cs| {
-        let pins = &PERIPHERALS.borrow(cs).get().unwrap().port;
+        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
 
         if HOST_MODE.load() {
             let mut keyout = KEY_OUT.borrow(cs).get();
 
             if keyout.is_empty() {
                 if keyout.shift_out() {
-                    KEYBOARD_PINS.at_data.set(pins);
+                    KEYBOARD_PINS.at_data.set(port);
                 } else {
-                    KEYBOARD_PINS.at_data.unset(pins);
+                    KEYBOARD_PINS.at_data.unset(port);
                 }
 
                 // Immediately after sending out the Stop Bit, we should release the lines.
                 if keyout.is_empty() {
-                    KEYBOARD_PINS.at_idle(pins);
+                    KEYBOARD_PINS.at_idle(port);
                 }
             } else {
                 // TODO: Is it possible to get a spurious clock interrupt and
                 // thus skip this logic?
-                if KEYBOARD_PINS.at_data.is_unset(pins) {
+                if KEYBOARD_PINS.at_data.is_unset(port) {
                     DEVICE_ACK.store(true);
                     keyout.clear();
                 }
             }
 
             KEY_OUT.borrow(cs).set(keyout);
-            KEYBOARD_PINS.clear_at_clk_int(pins);
+            KEYBOARD_PINS.clear_at_clk_int(port);
         } else {
             let full: bool;
             let mut keyin = KEY_IN.borrow(cs).get();
@@ -107,11 +107,11 @@ fn PORT1() {
             // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
             // sync for nested interrupts while not giving up safety?
             // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-            keyin.shift_in(KEYBOARD_PINS.at_data.is_set(pins));
+            keyin.shift_in(KEYBOARD_PINS.at_data.is_set(port));
             full = keyin.is_full();
 
             if full {
-                KEYBOARD_PINS.at_inhibit(pins); // Ask keyboard to not send anything while processing keycode.
+                KEYBOARD_PINS.at_inhibit(port); // Ask keyboard to not send anything while processing keycode.
 
                 match keyin.take() {
                     Some(k) => match IN_BUFFER.borrow(cs).try_borrow_mut() {
@@ -123,11 +123,11 @@ fn PORT1() {
 
                 keyin.clear();
 
-                KEYBOARD_PINS.at_idle(pins);
+                KEYBOARD_PINS.at_idle(port);
             }
 
             KEY_IN.borrow(cs).set(keyin);
-            KEYBOARD_PINS.clear_at_clk_int(pins);
+            KEYBOARD_PINS.clear_at_clk_int(port);
         }
     });
 }
