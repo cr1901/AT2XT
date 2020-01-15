@@ -28,6 +28,9 @@ version = "0.1.0"
 [dependencies.msp430-atomic]
 version = "0.1.0"
 
+[features]
+use-timer = []
+
 [profile.dev]
 debug = true
 

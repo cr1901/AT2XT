@@ -34,11 +34,37 @@ use keybuffer::{KeycodeBuffer, KeyIn, KeyOut};
 mod driver;
 use driver::KeyboardPins;
 
+#[cfg(feature = "use-timer")]
+macro_rules! us_to_ticks {
+    ($u:expr) => {
+        // Timer is 100000 Hz, thus granularity of 10us.
+        ($u / 10) + 1
+    }
+}
 
-/* interrupt!(TIMERA0, timer0_handler);
+#[cfg(not(feature = "use-timer"))]
+macro_rules! us_to_ticks {
+    ($u:expr) => {
+        // Delay is approx clock speed, thus granularity of 0.625us.
+        ($u * 16) / 10
+    }
+}
+
+#[cfg(feature = "use-timer")]
+interrupt!(TIMERA0, timer0_handler);
+#[cfg(feature = "use-timer")]
 fn timer0_handler() {
-    // you can do something here
-} */
+    free(|cs| {
+        let timer = msp430g2211::TIMER_A2.borrow(&cs);
+        TIMEOUT.store(true);
+
+        // Writing 0x0000 stops Timer in MC1.
+        timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
+        // CCIFG will be reset when entering interrupt; no need to clear it.
+        // Nesting is disabled, and chances of receiving second CCIFG in the ISR
+        // are nonexistant.
+    });
+}
 
 interrupt!(PORT1, porta_handler);
 fn porta_handler() {
@@ -95,6 +121,8 @@ fn porta_handler() {
     });
 }
 
+#[cfg(feature = "use-timer")]
+static TIMEOUT : AtomicBool = AtomicBool::new(false);
 static HOST_MODE : AtomicBool = AtomicBool::new(false);
 static DEVICE_ACK : AtomicBool = AtomicBool::new(false);
 
@@ -122,6 +150,16 @@ pub extern "C" fn main() -> ! {
             .rsel3().set_bit()); // XT2 off, Range Select 7.
         clock.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4.
         enable(); // Enable interrupts.
+    }
+
+    #[cfg(feature = "use-timer")]
+    {
+        free(|cs| {
+            msp430g2211::TIMER_A2.borrow(cs).taccr0.write(|w| unsafe { w.bits(0x0000) });
+            msp430g2211::TIMER_A2.borrow(cs).tactl.write(|w| w.tassel().tassel_2()
+                .id().id_2().mc().mc_1());
+            msp430g2211::TIMER_A2.borrow(cs).tacctl0.write(|w| w.ccie().set_bit());
+        });
     }
 
     send_byte_to_at_keyboard(0xFF);
@@ -286,6 +324,7 @@ fn toggle_leds(mask : u8) -> () {
     send_byte_to_at_keyboard(mask);
 }
 
+#[cfg(not(feature = "use-timer"))]
 fn delay(n: u16) {
     unsafe {
         asm!(r#"
@@ -294,4 +333,21 @@ fn delay(n: u16) {
     jne 1b
     "# :: "{r12}"(n) : "r12" : "volatile");
     }
+}
+
+#[cfg(feature = "use-timer")]
+fn delay(time : u16) {
+    start_timer(time);
+    while !TIMEOUT.load() {
+
+    }
+}
+
+#[cfg(feature = "use-timer")]
+fn start_timer(time : u16) -> () {
+    free(|cs| {
+        let timer = msp430g2211::TIMER_A2.borrow(cs);
+        TIMEOUT.store(false);
+        timer.taccr0.write(|w| unsafe { w.bits(time) });
+    })
 }
