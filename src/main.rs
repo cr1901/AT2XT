@@ -4,6 +4,9 @@
 #![feature(abi_msp430_interrupt)]
 #![feature(const_fn)]
 
+extern crate msp430_atomic;
+use msp430_atomic::AtomicBool;
+
 extern crate panic_msp430;
 
 use core::cell::{Cell, RefCell};
@@ -42,7 +45,7 @@ fn porta_handler() {
     // Interrupts already disabled, and doesn't make sense to nest them, since bits need
     // to be received in order. Just wrap whole block.
     free(|cs| {
-        if HOST_MODE.borrow(cs).get() {
+        if HOST_MODE.load() {
             let mut key_out = KEY_OUT.borrow(cs).get();
             if !key_out.is_empty() {
                 if key_out.shift_out() {
@@ -57,7 +60,7 @@ fn porta_handler() {
                 }
             } else {
                 if KEYBOARD_PINS.at_data.is_unset() {
-                    DEVICE_ACK.borrow(cs).set(true);
+                    DEVICE_ACK.store(true);
                     key_out.clear();
                 }
             }
@@ -92,11 +95,12 @@ fn porta_handler() {
     });
 }
 
+static HOST_MODE : AtomicBool = AtomicBool::new(false);
+static DEVICE_ACK : AtomicBool = AtomicBool::new(false);
+
 static IN_BUFFER : Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
 static KEY_IN : Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
 static KEY_OUT : Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
-static HOST_MODE : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
-static DEVICE_ACK : Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
 
 #[no_mangle]
@@ -267,17 +271,13 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
         unsafe {
             KEYBOARD_PINS.enable_at_clk_int();
         }
-        HOST_MODE.borrow(cs).set(true);
-        DEVICE_ACK.borrow(cs).set(false);
+        HOST_MODE.store(true);
+        DEVICE_ACK.store(false);
     });
 
-    while free(|cs| {
-        !DEVICE_ACK.borrow(cs).get()
-    }) { }
+    while !DEVICE_ACK.load() { }
 
-    free(|cs| {
-        HOST_MODE.borrow(cs).set(false);
-    })
+    HOST_MODE.store(false);
 }
 
 fn toggle_leds(mask : u8) -> () {
