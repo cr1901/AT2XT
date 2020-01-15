@@ -79,7 +79,7 @@ fn PORT1() {
         if HOST_MODE.load() {
             let mut keyout = KEY_OUT.borrow(cs).get();
 
-            if keyout.is_empty() {
+            if !keyout.is_empty() {
                 if keyout.shift_out() {
                     KEYBOARD_PINS.at_data.set(port);
                 } else {
