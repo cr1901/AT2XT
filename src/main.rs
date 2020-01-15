@@ -1,35 +1,22 @@
-#![no_std]
 #![no_main]
+#![no_std]
 #![feature(asm)]
 #![feature(abi_msp430_interrupt)]
-#![feature(const_fn)]
-
-extern crate msp430_atomic;
-use msp430_atomic::AtomicBool;
 
 extern crate panic_msp430;
 
+use bare_metal::Mutex;
+use bit_reverse::BitwiseReverse;
 use core::cell::{Cell, RefCell};
-
-extern crate bare_metal;
-use bare_metal::{Mutex};
-
-extern crate volatile_register;
-
-extern crate msp430;
 use msp430::interrupt::{enable, free};
-
-extern crate bit_reverse;
-use bit_reverse::ParallelReverse;
-
-#[macro_use(interrupt)]
-extern crate msp430g2211;
+use msp430_atomic::AtomicBool;
+use msp430g2211::{interrupt};
 
 mod keyfsm;
-use keyfsm::{Cmd, ProcReply, Fsm};
+use keyfsm::{Cmd, Fsm, ProcReply};
 
 mod keybuffer;
-use keybuffer::{KeycodeBuffer, KeyIn, KeyOut};
+use keybuffer::{KeyIn, KeyOut, KeycodeBuffer};
 
 mod driver;
 use driver::KeyboardPins;
@@ -39,7 +26,7 @@ macro_rules! us_to_ticks {
     ($u:expr) => {
         // Timer is 100000 Hz, thus granularity of 10us.
         ($u / 10) + 1
-    }
+    };
 }
 
 #[cfg(not(feature = "use-timer"))]
@@ -47,8 +34,18 @@ macro_rules! us_to_ticks {
     ($u:expr) => {
         // Delay is approx clock speed, thus granularity of 0.625us.
         ($u * 16) / 10
-    }
+    };
 }
+
+#[cfg(feature = "use-timer")]
+static TIMEOUT: AtomicBool = AtomicBool::new(false);
+static HOST_MODE: AtomicBool = AtomicBool::new(false);
+static DEVICE_ACK: AtomicBool = AtomicBool::new(false);
+
+static IN_BUFFER: Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
+static KEY_IN: Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
+static KEY_OUT: Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
+static KEYBOARD_PINS: KeyboardPins = KeyboardPins::new();
 
 #[cfg(feature = "use-timer")]
 interrupt!(TIMERA0, timer0_handler);
@@ -76,7 +73,7 @@ fn porta_handler() {
             if !key_out.is_empty() {
                 if key_out.shift_out() {
                     KEYBOARD_PINS.at_data.set(&cs);
-                } else{
+                } else {
                     KEYBOARD_PINS.at_data.unset(&cs);
                 }
 
@@ -94,7 +91,7 @@ fn porta_handler() {
             KEY_OUT.borrow(cs).set(key_out);
             KEYBOARD_PINS.clear_at_clk_int(&cs);
         } else {
-            let full : bool;
+            let full: bool;
             let mut key_in = KEY_IN.borrow(cs).get();
 
             // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
@@ -105,7 +102,6 @@ fn porta_handler() {
 
             if full {
                 KEYBOARD_PINS.at_inhibit(&cs); // Ask keyboard to not send anything while processing keycode.
-
 
                 if let Ok(mut b) = IN_BUFFER.borrow(cs).try_borrow_mut() {
                     b.put(key_in.take().unwrap());
@@ -121,23 +117,15 @@ fn porta_handler() {
     });
 }
 
-#[cfg(feature = "use-timer")]
-static TIMEOUT : AtomicBool = AtomicBool::new(false);
-static HOST_MODE : AtomicBool = AtomicBool::new(false);
-static DEVICE_ACK : AtomicBool = AtomicBool::new(false);
-
-static IN_BUFFER : Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
-static KEY_IN : Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
-static KEY_OUT : Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
-static KEYBOARD_PINS : KeyboardPins = KeyboardPins::new();
-
 #[no_mangle]
 pub extern "C" fn main() -> ! {
     unsafe {
         let wdt = &*msp430g2211::WATCHDOG_TIMER.get();
-        wdt.wdtctl.write(|w| w.bits(0x5A00) // password
-            .wdthold().set_bit()
-        );
+        wdt.wdtctl.write(|w| {
+            w.bits(0x5A00) // password
+                .wdthold()
+                .set_bit()
+        });
     }
 
     free(|cs| {
@@ -146,27 +134,39 @@ pub extern "C" fn main() -> ! {
 
     unsafe {
         let clock = &*msp430g2211::SYSTEM_CLOCK.get();
-        clock.bcsctl1.write(|w| w.xt2off().set_bit()
-            .rsel3().set_bit()); // XT2 off, Range Select 7.
+        clock
+            .bcsctl1
+            .write(|w| w.xt2off().set_bit().rsel3().set_bit()); // XT2 off, Range Select 7.
         clock.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4.
-        enable(); // Enable interrupts.
     }
 
     #[cfg(feature = "use-timer")]
     {
         free(|cs| {
-            msp430g2211::TIMER_A2.borrow(cs).taccr0.write(|w| unsafe { w.bits(0x0000) });
-            msp430g2211::TIMER_A2.borrow(cs).tactl.write(|w| w.tassel().tassel_2()
-                .id().id_2().mc().mc_1());
-            msp430g2211::TIMER_A2.borrow(cs).tacctl0.write(|w| w.ccie().set_bit());
+            msp430g2211::TIMER_A2
+                .borrow(cs)
+                .taccr0
+                .write(|w| unsafe { w.bits(0x0000) });
+            msp430g2211::TIMER_A2
+                .borrow(cs)
+                .tactl
+                .write(|w| w.tassel().tassel_2().id().id_2().mc().mc_1());
+            msp430g2211::TIMER_A2
+                .borrow(cs)
+                .tacctl0
+                .write(|w| w.ccie().set_bit());
         });
+    }
+
+    unsafe {
+        enable(); // Enable interrupts.
     }
 
     send_byte_to_at_keyboard(0xFF);
 
-    let mut loop_cmd : Cmd;
-    let mut loop_reply : ProcReply = ProcReply::init();
-    let mut fsm_driver : Fsm = Fsm::start();
+    let mut loop_cmd: Cmd;
+    let mut loop_reply: ProcReply = ProcReply::init();
+    let mut fsm_driver: Fsm = Fsm::start();
 
     'get_command: loop {
         // Run state machine/send reply. Receive new cmd.
@@ -180,7 +180,7 @@ pub extern "C" fn main() -> ! {
                     }
                 });
                 ProcReply::ClearedBuffer
-            },
+            }
             Cmd::ToggleLed(m) => {
                 toggle_leds(m);
                 ProcReply::LedToggled(m)
@@ -188,17 +188,17 @@ pub extern "C" fn main() -> ! {
             Cmd::SendXTKey(k) => {
                 send_byte_to_pc(k);
                 ProcReply::SentKey(k)
-            },
+            }
             Cmd::WaitForKey => {
                 // The micro spends the majority of its life idle. It is possible for the host PC and
                 // the keyboard to send data to the micro at the same time. To keep control flow simple,
                 // the micro will only respond to host PC acknowledge requests if its idle.
-                let mut xt_reset : bool = false;
+                let mut xt_reset: bool = false;
                 'idle: while free(|cs| {
                     if let Ok(b) = IN_BUFFER.borrow(cs).try_borrow_mut() {
                         b.is_empty()
                     } else {
-                        false
+                        true
                     }
                 }) {
                     // If host computer wants to reset
@@ -213,7 +213,7 @@ pub extern "C" fn main() -> ! {
                 if xt_reset {
                     ProcReply::KeyboardReset
                 } else {
-                    let mut bits_in = free(|cs|{
+                    let mut bits_in = free(|cs| {
                         if let Ok(mut b) = IN_BUFFER.borrow(cs).try_borrow_mut() {
                             b.take().unwrap()
                         } else {
@@ -225,13 +225,12 @@ pub extern "C" fn main() -> ! {
                     bits_in = bits_in >> 2; // Remove stop bit and parity bit (FIXME: Check parity).
                     ProcReply::GrabbedKey((bits_in as u8).swap_bits())
                 }
-            },
-
+            }
         }
     }
 }
 
-pub fn send_xt_bit(bit : u8) -> () {
+pub fn send_xt_bit(bit: u8) -> () {
     free(|cs| {
         if bit == 1 {
             KEYBOARD_PINS.xt_data.set(&cs);
@@ -242,21 +241,19 @@ pub fn send_xt_bit(bit : u8) -> () {
         KEYBOARD_PINS.xt_clk.unset(&cs);
     });
 
-    delay(88); // 55 microseconds at 1.6 MHz
+    delay(us_to_ticks!(55));
 
     free(|cs| {
         KEYBOARD_PINS.xt_clk.set(&cs);
     });
 }
 
-pub fn send_byte_to_pc(mut byte : u8) -> () {
+pub fn send_byte_to_pc(mut byte: u8) -> () {
     // The host cannot send data; the only communication it can do with the micro is pull
     // the CLK (reset) and DATA (shift register full) low.
     // Wait for the host to release the lines.
 
-    while KEYBOARD_PINS.xt_clk.is_unset() || KEYBOARD_PINS.xt_data.is_unset() {
-
-    }
+    while KEYBOARD_PINS.xt_clk.is_unset() || KEYBOARD_PINS.xt_data.is_unset() {}
 
     free(|cs| {
         KEYBOARD_PINS.xt_out(&cs);
@@ -267,7 +264,7 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
 
     for _ in 0..8 {
         send_xt_bit((byte & 0x01)); /* Send data... */
-		byte = byte >> 1;
+        byte = byte >> 1;
     }
 
     free(|cs| {
@@ -275,7 +272,7 @@ pub fn send_byte_to_pc(mut byte : u8) -> () {
     });
 }
 
-fn send_byte_to_at_keyboard(byte : u8) -> () {
+fn send_byte_to_at_keyboard(byte: u8) -> () {
     free(|cs| {
         let mut key_out = KEY_OUT.borrow(cs).get();
         key_out.put(byte).unwrap();
@@ -286,21 +283,19 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
         KEYBOARD_PINS.disable_at_clk_int();
     });
 
-    while KEYBOARD_PINS.at_clk.is_unset() {
-
-    }
+    while KEYBOARD_PINS.at_clk.is_unset() {}
 
     free(|cs| {
         KEYBOARD_PINS.at_inhibit(&cs);
     });
 
-    delay(160); // 100 microseconds
+    delay(us_to_ticks!(100));
 
     free(|cs| {
         KEYBOARD_PINS.at_data.unset(cs);
     });
 
-    delay(53); // 33 microseconds
+    delay(us_to_ticks!(33));
 
     free(|cs| {
         KEYBOARD_PINS.at_clk.set(cs);
@@ -313,14 +308,14 @@ fn send_byte_to_at_keyboard(byte : u8) -> () {
         DEVICE_ACK.store(false);
     });
 
-    while !DEVICE_ACK.load() { }
+    while !DEVICE_ACK.load() {}
 
     HOST_MODE.store(false);
 }
 
-fn toggle_leds(mask : u8) -> () {
+fn toggle_leds(mask: u8) -> () {
     send_byte_to_at_keyboard(0xED);
-    delay(5000);
+    delay(us_to_ticks!(3000));
     send_byte_to_at_keyboard(mask);
 }
 
@@ -336,15 +331,13 @@ fn delay(n: u16) {
 }
 
 #[cfg(feature = "use-timer")]
-fn delay(time : u16) {
+fn delay(time: u16) {
     start_timer(time);
-    while !TIMEOUT.load() {
-
-    }
+    while !TIMEOUT.load() {}
 }
 
 #[cfg(feature = "use-timer")]
-fn start_timer(time : u16) -> () {
+fn start_timer(time: u16) -> () {
     free(|cs| {
         let timer = msp430g2211::TIMER_A2.borrow(cs);
         TIMEOUT.store(false);
