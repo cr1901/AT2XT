@@ -41,6 +41,7 @@ macro_rules! us_to_ticks {
 
 struct At2XtPeripherals {
     port: msp430g2211::PORT_1_2,
+    #[cfg(feature = "use-timer")]
     timer: msp430g2211::TIMER_A2,
 }
 
@@ -159,6 +160,7 @@ fn init() {
     mspint::free(|cs| {
         let shared = At2XtPeripherals {
             port: p.PORT_1_2,
+            #[cfg(feature = "use-timer")]
             timer: p.TIMER_A2,
         };
 
