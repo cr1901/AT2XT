@@ -5,7 +5,7 @@
 
 extern crate panic_msp430;
 
-use bare_metal::Mutex;
+use bare_metal::{Mutex, CriticalSection};
 use bit_reverse::BitwiseReverse;
 use core::cell::{Cell, RefCell};
 use msp430::interrupt as mspint;
@@ -58,82 +58,78 @@ static PERIPHERALS: Mutex<OnceCell<At2XtPeripherals>> = Mutex::new(OnceCell::new
 
 #[cfg(feature = "use-timer")]
 #[interrupt]
-fn TIMERA0() {
+fn TIMERA0(cs: CriticalSection) {
     TIMEOUT.store(true);
 
-    mspint::free(|cs| {
-        let p = PERIPHERALS.borrow(cs).get().unwrap();
-        // Writing 0x0000 stops Timer in MC1.
-        p.timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
-        // CCIFG will be reset when entering interrupt; no need to clear it.
-        // Nesting is disabled, and chances of receiving second CCIFG in the ISR
-        // are nonexistant. */
-    });
+    let p = PERIPHERALS.borrow(&cs).get().unwrap();
+    // Writing 0x0000 stops Timer in MC1.
+    p.timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
+    // CCIFG will be reset when entering interrupt; no need to clear it.
+    // Nesting is disabled, and chances of receiving second CCIFG in the ISR
+    // are nonexistant. */
 }
 
 #[interrupt]
-fn PORT1() {
-    mspint::free(|cs| {
-        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+fn PORT1(cs: CriticalSection) {
+    let port = &PERIPHERALS.borrow(&cs).get().unwrap().port;
 
-        if HOST_MODE.load() {
-            let mut keyout = KEY_OUT.borrow(cs).get();
+    if HOST_MODE.load() {
+        let mut keyout = KEY_OUT.borrow(&cs).get();
 
-            if !keyout.is_empty() {
-                if keyout.shift_out() {
-                    KEYBOARD_PINS.at_data.set(port);
-                } else {
-                    KEYBOARD_PINS.at_data.unset(port);
-                }
-
-                // Immediately after sending out the Stop Bit, we should release the lines.
-                if keyout.is_empty() {
-                    KEYBOARD_PINS.at_idle(port);
-                }
+        if !keyout.is_empty() {
+            if keyout.shift_out() {
+                KEYBOARD_PINS.at_data.set(port);
             } else {
-                // TODO: Is it possible to get a spurious clock interrupt and
-                // thus skip this logic?
-                if KEYBOARD_PINS.at_data.is_unset(port) {
-                    DEVICE_ACK.store(true);
-                    keyout.clear();
-                }
+                KEYBOARD_PINS.at_data.unset(port);
             }
 
-            KEY_OUT.borrow(cs).set(keyout);
-            KEYBOARD_PINS.clear_at_clk_int(port);
-        } else {
-            let full: bool;
-            let mut keyin = KEY_IN.borrow(cs).get();
-
-            // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
-            // sync for nested interrupts while not giving up safety?
-            // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-            keyin.shift_in(KEYBOARD_PINS.at_data.is_set(port));
-            full = keyin.is_full();
-
-            if full {
-                KEYBOARD_PINS.at_inhibit(port); // Ask keyboard to not send anything while processing keycode.
-
-                match keyin.take() {
-                    Some(k) => match IN_BUFFER.borrow(cs).try_borrow_mut() {
-                        Ok(mut b) => b.put(k),
-                        Err(_) => {}
-                    },
-                    None => {}
-                }
-
-                keyin.clear();
-
+            // Immediately after sending out the Stop Bit, we should release the lines.
+            if keyout.is_empty() {
                 KEYBOARD_PINS.at_idle(port);
             }
-
-            KEY_IN.borrow(cs).set(keyin);
-            KEYBOARD_PINS.clear_at_clk_int(port);
+        } else {
+            // TODO: Is it possible to get a spurious clock interrupt and
+            // thus skip this logic?
+            if KEYBOARD_PINS.at_data.is_unset(port) {
+                DEVICE_ACK.store(true);
+                keyout.clear();
+            }
         }
-    });
+
+        KEY_OUT.borrow(&cs).set(keyout);
+        KEYBOARD_PINS.clear_at_clk_int(port);
+    } else {
+        let full: bool;
+        let mut keyin = KEY_IN.borrow(&cs).get();
+
+        // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
+        // sync for nested interrupts while not giving up safety?
+        // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
+        keyin.shift_in(KEYBOARD_PINS.at_data.is_set(port));
+        full = keyin.is_full();
+
+        if full {
+            KEYBOARD_PINS.at_inhibit(port); // Ask keyboard to not send anything while processing keycode.
+
+            match keyin.take() {
+                Some(k) => match IN_BUFFER.borrow(&cs).try_borrow_mut() {
+                    Ok(mut b) => b.put(k),
+                    Err(_) => {}
+                },
+                None => {}
+            }
+
+            keyin.clear();
+
+            KEYBOARD_PINS.at_idle(port);
+        }
+
+        KEY_IN.borrow(&cs).set(keyin);
+        KEYBOARD_PINS.clear_at_clk_int(port);
+    }
 }
 
-fn init() {
+fn init(cs: CriticalSection) {
     let p = Peripherals::take().unwrap();
 
     p.WATCHDOG_TIMER.wdtctl.write(|w| unsafe {
@@ -157,24 +153,23 @@ fn init() {
         p.TIMER_A2.tacctl0.write(|w| w.ccie().set_bit());
     }
 
-    mspint::free(|cs| {
-        let shared = At2XtPeripherals {
-            port: p.PORT_1_2,
-            #[cfg(feature = "use-timer")]
-            timer: p.TIMER_A2,
-        };
+    let shared = At2XtPeripherals {
+        port: p.PORT_1_2,
+        #[cfg(feature = "use-timer")]
+        timer: p.TIMER_A2,
+    };
 
-        PERIPHERALS.borrow(cs).set(shared).ok().unwrap();
-    });
+    PERIPHERALS.borrow(&cs).set(shared).ok().unwrap();
 
+    drop(cs);
     unsafe {
         mspint::enable();
     }
 }
 
 #[entry]
-fn main() -> ! {
-    init();
+fn main(cs: CriticalSection) -> ! {
+    init(cs);
 
     send_byte_to_at_keyboard(0xFF);
 
