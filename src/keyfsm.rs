@@ -78,18 +78,14 @@ impl Fsm {
 
         let next_cmd = match &next_state {
             &State::NotInKey => Ok(Cmd::WaitForKey),
-            &State::SimpleKey(k) => {
-                match keymap::to_xt(k) {
-                    Some(k) => Ok(Cmd::SendXTKey(k)),
-                    None => Err(())
-                }
+            &State::SimpleKey(k) => match keymap::to_xt(k) {
+                Some(k) => Ok(Cmd::SendXTKey(k)),
+                None => Err(()),
             },
             &State::PossibleBreakCode => Ok(Cmd::WaitForKey),
-            &State::KnownBreakCode(b) => {
-                match keymap::to_xt(b) {
-                    Some(b) => Ok(Cmd::SendXTKey(b | 0x80)),
-                    None => Err(())
-                }
+            &State::KnownBreakCode(b) => match keymap::to_xt(b) {
+                Some(b) => Ok(Cmd::SendXTKey(b | 0x80)),
+                None => Err(()),
             },
             &State::UnmodifiedKey(u) => Ok(Cmd::SendXTKey(u)),
             &State::ToggleLedFirst(l) => {

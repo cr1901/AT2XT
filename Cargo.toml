@@ -18,7 +18,7 @@ version = "0.1.7"
 default_features = false
 
 [dependencies.msp430-rt]
-version = "0.2.0"
+version = "0.2.4"
 
 [dependencies.msp430g2211]
 version = "0.2.0"

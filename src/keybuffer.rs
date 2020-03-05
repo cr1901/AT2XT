@@ -27,9 +27,9 @@ impl KeycodeBuffer {
         // if self.tail.wrapping_sub(self.head) == 15. 16 might be possible!
 
         /* The most space-efficient way to add/remove queue elements is to
-           force the array access to be within bounds by ignoring the top bits
-           (equivalent to "% power_of_two"). This will optimize out the bounds
-           check. */
+        force the array access to be within bounds by ignoring the top bits
+        (equivalent to "% power_of_two"). This will optimize out the bounds
+        check. */
         self.contents[(self.tail % 16) as usize] = in_key;
         self.tail = self.tail.wrapping_add(1);
     }

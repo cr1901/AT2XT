@@ -5,7 +5,7 @@
 
 extern crate panic_msp430;
 
-use bare_metal::{Mutex, CriticalSection};
+use bare_metal::{CriticalSection, Mutex};
 use bit_reverse::BitwiseReverse;
 use core::cell::{Cell, RefCell};
 use msp430::interrupt as mspint;
