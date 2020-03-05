@@ -11,11 +11,11 @@ mod keymap {
     0x52,0x53,0x50,0x4C,0x4D,0x48,0x01,0x45,0x57,0x4E,0x51,0x4A,0x37,0x49,0x46,0x00,
     0x00,0x00,0x00,0x41];
 
-    pub fn to_xt(at_in: u8) -> u8 {
+    pub fn to_xt(at_in: u8) -> Option<u8> {
         if at_in < 132 {
-            KEYCODE_LUT[at_in as usize]
+            Some(KEYCODE_LUT[at_in as usize])
         } else {
-            0
+            None
         }
     }
 }
@@ -78,9 +78,19 @@ impl Fsm {
 
         let next_cmd = match &next_state {
             &State::NotInKey => Ok(Cmd::WaitForKey),
-            &State::SimpleKey(k) => Ok(Cmd::SendXTKey(keymap::to_xt(k))),
+            &State::SimpleKey(k) => {
+                match keymap::to_xt(k) {
+                    Some(k) => Ok(Cmd::SendXTKey(k)),
+                    None => Err(())
+                }
+            },
             &State::PossibleBreakCode => Ok(Cmd::WaitForKey),
-            &State::KnownBreakCode(b) => Ok(Cmd::SendXTKey(keymap::to_xt(b) | 0x80)),
+            &State::KnownBreakCode(b) => {
+                match keymap::to_xt(b) {
+                    Some(b) => Ok(Cmd::SendXTKey(b | 0x80)),
+                    None => Err(())
+                }
+            },
             &State::UnmodifiedKey(u) => Ok(Cmd::SendXTKey(u)),
             &State::ToggleLedFirst(l) => {
                 match l {
