@@ -19,8 +19,6 @@ default_features = false
 
 [dependencies.msp430-rt]
 version = "0.2.0"
-git = "https://github.com/rust-embedded/msp430-rt"
-rev = "1f9266fb"
 
 [dependencies.msp430g2211]
 version = "0.2.0"
@@ -48,6 +46,3 @@ lto = "fat"
 codegen-units = 1
 opt-level = "s"
 lto = "fat"
-
-[patch.crates-io]
-msp430-rt = { git = "https://github.com/rust-embedded/msp430-rt", rev = "1f9266fb"}
