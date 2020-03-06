@@ -109,7 +109,11 @@ fn PORT1(cs: CriticalSection) {
 
             match keyin.take() {
                 Some(k) => match IN_BUFFER.borrow(&cs).try_borrow_mut() {
-                    Ok(mut b) => b.put(k),
+                    Ok(mut b) => {
+                        // Dropping keys when the buffer is full is in line
+                        // with what AT/XT hosts do. Saves 2 bytes on panic :)!
+                        let _ = b.put(k);
+                    },
                     Err(_) => {}
                 },
                 None => {}
