@@ -4,8 +4,8 @@
 //Debug variables
 #ifdef __DEBUG__
 	short AA_count = 0;
-#endif	
-	
+#endif
+
 static char led_code = 0;
 
 static void store_keycode();
@@ -24,23 +24,23 @@ static const unsigned char ATXT_Table[132]=
 0x00,0x00,0x00,0x00,0x00,0x00,0x0E,0x00,0x00,0x4F,0x00,0x4B,0x47,0x00,0x00,0x00,
 0x52,0x53,0x50,0x4C,0x4D,0x48,0x01,0x45,0x57,0x4E,0x51,0x4A,0x37,0x49,0x46,0x00,
 0x00,0x00,0x00,0x41}; //Entry 0x84 is 0x54
-	
+
 
 typedef enum AT2XT_fsm_states
 {
 	CLEAR,
-	
+
 	CHECK_CHAR_NEW,
 	GET_XT_BYTE_NEW,
 	CHECK_BUFFER_NEW,
-	
+
 	CHECK_BUFFER_F0,
 	WAIT_FOR_NEXT_BYTE_F0,
 	GET_XT_BYTE_F0,
-	
+
 	SEND_UNMODIFIED_KEYCODE,
 	HANDLE_COMMAND_BYTE,
-	
+
 	DONE_FSM
 }AT2XT_FSM_STATES;
 
@@ -60,10 +60,10 @@ typedef enum pause_states
 void AT2XT_FSM()
 {
 	//char FSM_sim = TRUE;
-	
+
 	//Arrow keys beep for some reason on Windows keyboard...
 	//Checkit PC vs AT vs 101 keyboard test (Pause mapped to Numlock- 101/AT, RCTRL mapped to backspace- AT)
-	
+
 	//Make static? Makes any difference?
 	unsigned char curr_keycode;
 	PAUSE_STATES curr_pause_state = OUTSIDE_PAUSE;
@@ -76,7 +76,7 @@ void AT2XT_FSM()
 			store_keycode();
 			curr_state = CHECK_CHAR_NEW;
 			break;
-			
+
 		case CHECK_CHAR_NEW:
 			curr_keycode = process_keycode();
 			switch(curr_keycode)
@@ -84,34 +84,34 @@ void AT2XT_FSM()
 			/* case 0x00:
 				curr_state = DONE_FSM;
 				break; */
-			// Ignore certain keycodes.	
+			// Ignore certain keycodes.
 			case 0xFA:
 			case 0xAA:
 			case 0xFE: //Check for this code! Also known bugs: LOCK LEDs can go out of sync during Checkit.
 			case 0xEE:
 				curr_state = CHECK_BUFFER_NEW;
 				break;
-					
+
 			case 0xF0:
 				curr_state = CHECK_BUFFER_F0;
 				break;
-				
+
 			case 0xE0:
 			case 0xE1:
 				curr_state = SEND_UNMODIFIED_KEYCODE;
 				break;
-				
+
 			default:
 				curr_state = GET_XT_BYTE_NEW;
 				break;
 			}
 			break;
-			
+
 		case GET_XT_BYTE_NEW:
 			send_new_keycode(ATXT_Table[curr_keycode]);
 			curr_state = CHECK_BUFFER_NEW;
 			break;
-			
+
 		case CHECK_BUFFER_NEW:
 			if((buffer_tail - buffer_head) == 0)
 			{
@@ -122,7 +122,7 @@ void AT2XT_FSM()
 				curr_state = CHECK_CHAR_NEW;
 			}
 			break;
-			
+
 		case CHECK_BUFFER_F0:
 			if((buffer_tail - buffer_head) == 0)
 			{
@@ -133,16 +133,16 @@ void AT2XT_FSM()
 				curr_state = GET_XT_BYTE_F0;
 			}
 			break;
-		
+
 		case WAIT_FOR_NEXT_BYTE_F0:
 			store_keycode();
 			curr_state = GET_XT_BYTE_F0;
 			break;
-		
+
 		case GET_XT_BYTE_F0:
 			//Can be done all at once
 			curr_keycode = process_keycode();
-			
+
 			switch(curr_keycode)
 			{
 				case 0x7E:
@@ -151,8 +151,8 @@ void AT2XT_FSM()
 					Stall(TIMER_FRQ/100);
 					SendBytetoATKeyboard(led_code); //Scroll lock off
 					break;
-					
-				case 0x77:	
+
+				case 0x77:
 					/* The pause/break keycode embeds
 					 * the numlock make/break code... LEDs go
 					 * out of sync! */
@@ -170,32 +170,32 @@ void AT2XT_FSM()
 							break;
 					}
 					break;
-					
+
 				case 0x58:
 					SendBytetoATKeyboard(0xED);
 					led_code ^= 0x04;
 					Stall(TIMER_FRQ/100);
 					SendBytetoATKeyboard(led_code); //Caps lock off
 					break;
-					
+
 				default:
 					break;
 			}
 			send_new_keycode(ATXT_Table[curr_keycode] | 0x80);
 			curr_state = CHECK_BUFFER_NEW;
 			break;
-			
+
 		case SEND_UNMODIFIED_KEYCODE:
 			//0xE0 and 0xE1 are handled as special cases
 			if(curr_keycode == 0xE1)
 			{
 				curr_pause_state = IN_PAUSE;
 			}
-				
+
 			send_new_keycode(curr_keycode);
 			curr_state = CHECK_BUFFER_NEW;
 			break;
-			
+
 		/* case DONE_FSM:
 			FSM_sim = 0;
 			break; */
@@ -215,22 +215,22 @@ void store_keycode()
 		//SendBytetoATKeyboard(0xFF);
 		//SendBytetoATKeyboard(0xFF);
 		//SendBytetoATKeyboard(0xFF);
-		
+
 		if((INPUT_REG & CAPTURE_P2CLK) == 0)
 		{
 			StartTimer(TIMER_FRQ/50); /* 1/50th of a second = 20ms */
 			while((INPUT_REG & CAPTURE_P2CLK) == 0)
 			{
-				/* If more than 20 ms pass since the timer started, 
+				/* If more than 20 ms pass since the timer started,
  				* it's time to reset. */
 				if(timeout) /* Timer has stopped itself if timeout */
 				{
-					/* On soft reset, sending two reset commands in a 
+					/* On soft reset, sending two reset commands in a
 					 * short period of time may cause the keyboard to ask for the command
-					 * to be resent (0xFE). This is okay/does not affect operation. */ 
+					 * to be resent (0xFE). This is okay/does not affect operation. */
 					SendBytetoATKeyboard(0xFF);
 					SendBytetoPC(0xAA);
-					buffer_flush();
+					BufferFlush();
 					led_code = 0x00;
 					#ifdef __DEBUG__
 						AA_count++;
@@ -242,7 +242,7 @@ void store_keycode()
 			/* Might not be necessary... */
 			StopTimer();
 		}
-		
+
 	}while((buffer_head - buffer_tail) == 0);
 }
 
@@ -255,7 +255,7 @@ unsigned char process_keycode()
 	keycode = keycode_buffer[buffer_head];
 	//printf("%hX,", keycode);
 	buffer_head = (++buffer_head)%16;
-	return keycode;	
+	return keycode;
 }
 
 void send_new_keycode(unsigned char new_keycode)

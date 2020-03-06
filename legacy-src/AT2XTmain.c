@@ -11,7 +11,7 @@
 	volatile int counterc = 0;
 	volatile int counterd = 0;
 	int test_byte = 0;
-	
+
 #endif
 
 /* Extern definitions */
@@ -40,7 +40,7 @@ void SendXTBit(char bit)
 void SendBytetoPC(char xt_code)
 {
 	char num_bits = 0;
-	
+
 	#ifdef __DEBUG__
 		const char test_keycode = 0x25; //'K' scancode
 		//xt_code = test_keycode;
@@ -49,9 +49,9 @@ void SendBytetoPC(char xt_code)
 		#endif
 	#endif
 	//Check that start/stop bits are good
-	
-	
-	
+
+
+
 	//1
 	//#ifdef __DEBUG__
 	//test_byte = 0;
@@ -60,27 +60,27 @@ void SendBytetoPC(char xt_code)
 		//test_byte++;
 		 /* Wait for both CLK and DATA to go high */
 	}
-	
+
 	//TACCTL0 &= ~CCIE;
-	
+
 	//Set to output (both lines not being driven)
 	OUTPUT_REG |= PORT2_CLK;
 	OUTPUT_REG |= PORT2_DATA;
-	
+
 	//2
 	DIRECTION_REG |= (PORT2_CLK + PORT2_DATA);
 	SendXTBit(0);
 	SendXTBit(1);
-	
+
 	for(num_bits = 0; num_bits <= 7; num_bits++)
 	{
 		SendXTBit((xt_code & 0x01)); /* Send data... */
 		xt_code = xt_code >> 1;
 	}
-	
+
 	//8
 	OUTPUT_REG |= PORT2_DATA;
-	
+
 	//9
 	DIRECTION_REG &= ~(PORT2_CLK + PORT2_DATA);
 }
@@ -91,33 +91,33 @@ void SendBytetoATKeyboard(char at_code)
 	//P1Out_buffer = ((P1Out_buffer << 1) | ComputeParity(P1Out_buffer));
 	P1Out_buffer = (P1Out_buffer | (ComputeParity(P1Out_buffer) << 8));
 	P1IE &= ~PORT1_CLK; //Disable interrupts
-	
+
 	/* Wait for clock to go high. */
 	while((P1IN &PORT1_CLK) == 0);
-	
+
 	/* Cannot use the 12000 or 100000 Hz timer here...
-	 * it is possible to lock the microcontroller in 
-	 * Stall() (especially when LEDs are being serviced)! 
+	 * it is possible to lock the microcontroller in
+	 * Stall() (especially when LEDs are being serviced)!
 	 * Use PAUSE() macro instead, which delays
 	 * by a number of cycles. */
 	InhibitComm();
 	PAUSE(110); /* Delay 100 microseconds or so... */
-	
+
 	P1OUT &= ~PORT1_DATA;
 	PAUSE(33);
-	
+
 	P1OUT |= PORT1_CLK;
 	DIRECTION_REG &= ~PORT1_CLK;
 	P1IFG &= ~PORT1_CLK;	/* Clear pending interrupt */
 	P1IE |= PORT1_CLK; //Re-enable interrupts
-	
+
 	HostMode = TRUE;
 	DeviceACK = FALSE;
 	StartTimer(TIMER_FRQ/50); /* Wait for DeviceACK or 20ms Timeout */
 
 	while((DeviceACK == FALSE) && !timeout)
 	{
-			
+
 	}
 	StopTimer();
 	HostMode = FALSE;
@@ -126,12 +126,12 @@ void SendBytetoATKeyboard(char at_code)
 //AT Host
 void SendBytetoAT()
 {
-	
+
 }
 
 void ResetXTKeyboard()
 {
-		
+
 }
 
 
@@ -173,7 +173,7 @@ void IdleComm()
 
 void BufferFlush()
 {
-	char count;	
+	char count;
 	for(count = 0; count < 16; count++)
 	{
 			keycode_buffer[count] = 0x01;
@@ -190,7 +190,7 @@ char ComputeParity(unsigned char shifted_byte)
 		num_ones += (shifted_byte & 0x01);
 		shifted_byte = shifted_byte << 1;
 	}
-	
+
 	/* I'm not fond of the ternary operator... */
 	if(num_ones % 2)
 	{
@@ -215,25 +215,25 @@ unsigned char ReverseBits(unsigned char b) {
 }
 
 int main()
-{	
+{
 	WDTCTL = WDTPW + WDTHOLD;  //Stop watchdog
-	
+
 	/* For now, assume PORT1 is device and PORT2 is host... they are both part of
 	 * I/O port 1 on the MSP430. */
 	P1DIR &= 0x00; //P1.0 is output to keyboard. P1.1 is input from keyboard.
 	P1IFG &= ~PORT1_CLK;
 	P1IES |= PORT1_CLK; //Interrupt Edge Select 0: LtoH 1:HtoL
 	P1IE |= PORT1_CLK;
-	
+
 	BCSCTL1 &= ~(RSEL3 + RSEL2 + RSEL1 + RSEL0);
 	BCSCTL1 |= (RSEL3); //2.3 MHz- try 1.6 Mhz...
-	BCSCTL2 &= ~DIVS_3; 
+	BCSCTL2 &= ~DIVS_3;
 	BCSCTL2 &= DIVS_2; //Divide SubMain Clock by 4
-	
+
 	//BCSCTL3 &=	~LFXT1S_0; //Don't mess with other bits
-   // BCSCTL3 |=	LFXT1S_2; 
-   		/* Set ACLK to Very Low Power Oscillator- 
-     	supposedly needs to be external, according to pg. 44 of device datasheet. 
+   // BCSCTL3 |=	LFXT1S_2;
+   		/* Set ACLK to Very Low Power Oscillator-
+     	supposedly needs to be external, according to pg. 44 of device datasheet.
      	Frequency is 12000Hz approx. */
 	TACCR0 = 0;
 	TACTL = TASSEL_2 + ID_2 + MC_1; //Use SubMain Clock, divide by 4 again.
@@ -241,23 +241,23 @@ int main()
 	//TAIV = 0; /* Clear interrupts */
 	//DCOCTL = DCO_
 	//P1SEL |= CAPTURE_P2CLK; /* Use Timer Peripheral. */
-	
-	
+
+
 	//keyIn_count = 0;
 	//keyOut_count = 0;
 	//goto LPM;
 	P1In_buffer = 0x0000;
 	IdleComm();
-	
-	buffer_flush();
+
+	BufferFlush();
 	__bis_SR_register(GIE);
-	
+
 	SendBytetoATKeyboard(0xFF);
 	Stall(65535);
 	SendBytetoATKeyboard(0xEE);
 	Stall(TIMER_FRQ/100);
-	
-	AT2XT_FSM();	
+
+	AT2XT_FSM();
 }
 
 #pragma vector=PORT1_VECTOR
@@ -266,10 +266,10 @@ __interrupt void PCOutKeyIn(void)
 	#ifdef __DEBUG__
 		counterc++;
 	#endif
-	
+
 	static char keyOut_count = 0;
 	static char keyIn_count = 0;
-	
+
 	if(HostMode)
 	{
 		//HostMode = FALSE;
@@ -280,7 +280,7 @@ __interrupt void PCOutKeyIn(void)
 		{
 			//Bits 0 through Parity (second through tenth bit)
 			if(keyOut_count <= 8)
-			{			
+			{
 					//P1IFG &= ~PORT1_CLK; //Clear the flag which caused the interrupt!
 					P1OUT &= ~PORT1_DATA;
 					//P1OUT |= ((P1Out_buffer & 0x01) << (PORT1_DATA - 1));
@@ -288,7 +288,7 @@ __interrupt void PCOutKeyIn(void)
 					P1Out_buffer = P1Out_buffer >> 1;
 					keyOut_count++;
 			}
-			
+
 			// 11
 			else if(keyOut_count == 9)
 			{
@@ -303,42 +303,42 @@ __interrupt void PCOutKeyIn(void)
 					DeviceACK = TRUE;
 					keyOut_count = 0; /* In case of timeout, keyOut_count also needs to
 										* be reset outside the ISR? */
-										
+
 					/* I don't think this works here... but I can't
-					 * excatly recall the issues I had.. */					
-					//HostMode = FALSE;	
+					 * excatly recall the issues I had.. */
+					//HostMode = FALSE;
 				}
 			}
 		}
 	}
-	
+
 	else
-	{ 
+	{
 			#ifdef __DEBUG__
 				counterb++;
 			#endif
 			P1In_buffer = P1In_buffer << 1;
 			P1In_buffer |= (P1IN & PORT1_DATA);
 			keyIn_count++;
-			
+
 			if(keyIn_count >= 11)
 			{
 				P1IE &= ~PORT1_CLK;
 				InhibitComm();
-				
+
 				//Prevent infinite recursion in case another byte is received.
 				keyIn_count = 0;
 				P1In_buffer = P1In_buffer >> PORT1_DATA_PIN;
-				
+
 				//If Start Bit is not 0 and Stop Bit is not 1... discard
 				if((P1In_buffer & BITA) || !(P1In_buffer & BIT0))
 				{
 					BadKeys++;
 					/* Do nothing */
-				}  
+				}
 				else
 				{
-					P1In_buffer &= ~(BITA + BIT0);	
+					P1In_buffer &= ~(BITA + BIT0);
 					P1In_buffer = P1In_buffer >> 1; //Shift/remove stop bit
 					//Check that parity is good...
 					P1In_buffer = P1In_buffer >> 1;
@@ -347,14 +347,14 @@ __interrupt void PCOutKeyIn(void)
 					buffer_tail = (++buffer_tail) % 16;
 					LPM3_EXIT;
 				}
-				P1In_buffer = 0x0000; 
+				P1In_buffer = 0x0000;
 				/* Clear the buffer in to prevent the previous value from influencing the
 				 * start bit/parity of the next value (because each bit is ORed with
 				 * the current buffer- if any bits are 1 from bit reversal, they will
 				 * STAY 1 while the next bytes are shifted in. */
 				IdleComm();
 				P1IE |= PORT1_CLK; //Keyboard must wait for line to be high for 50 milliseconds...
-									//This is enough time to enable interrupts.			
+									//This is enough time to enable interrupts.
 			}
 			//P1IFG &= ~PORT1_CLK; //Clear the flag which caused the interrupt!
 	}
