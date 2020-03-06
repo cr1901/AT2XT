@@ -76,8 +76,8 @@ fn PORT1(cs: CriticalSection) {
     if HOST_MODE.load() {
         let mut keyout = KEY_OUT.borrow(&cs).get();
 
-        if !keyout.is_empty() {
-            if keyout.shift_out() {
+        if let Some(k) = keyout.shift_out() {
+            if k {
                 KEYBOARD_PINS.at_data.set(port);
             } else {
                 KEYBOARD_PINS.at_data.unset(port);
@@ -99,16 +99,12 @@ fn PORT1(cs: CriticalSection) {
         KEY_OUT.borrow(&cs).set(keyout);
         KEYBOARD_PINS.clear_at_clk_int(port);
     } else {
-        let full: bool;
         let mut keyin = KEY_IN.borrow(&cs).get();
 
         // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
         // sync for nested interrupts while not giving up safety?
         // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-        keyin.shift_in(KEYBOARD_PINS.at_data.is_set(port));
-        full = keyin.is_full();
-
-        if full {
+        if keyin.shift_in(KEYBOARD_PINS.at_data.is_set(port)).is_err() {
             KEYBOARD_PINS.at_inhibit(port); // Ask keyboard to not send anything while processing keycode.
 
             match keyin.take() {

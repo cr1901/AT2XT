@@ -60,7 +60,7 @@ impl KeyIn {
         }
     }
 
-    pub fn is_full(&self) -> bool {
+    fn is_full(&self) -> bool {
         self.pos >= 11
     }
 
@@ -69,11 +69,17 @@ impl KeyIn {
         self.contents = 0;
     }
 
-    pub fn shift_in(&mut self, bit: bool) -> () {
+    pub fn shift_in(&mut self, bit: bool) -> Result<(), ()> {
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         let cast_bit: u16 = if bit { 1 } else { 0 };
         self.contents = (self.contents << 1) | cast_bit;
         self.pos = self.pos + 1;
+
+        if !self.is_full() {
+            Ok(())
+        } else {
+            Err(())
+        }
     }
 
     pub fn take(&mut self) -> Option<u16> {
@@ -110,12 +116,16 @@ impl KeyOut {
         self.contents = 0;
     }
 
-    pub fn shift_out(&mut self) -> bool {
+    pub fn shift_out(&mut self) -> Option<bool> {
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
-        let cast_bit: bool = (self.contents & 0x01) == 1;
-        self.contents = self.contents >> 1;
-        self.pos = self.pos + 1;
-        cast_bit
+        if !self.is_empty() {
+            let cast_bit: bool = (self.contents & 0x01) == 1;
+            self.contents = self.contents >> 1;
+            self.pos = self.pos + 1;
+            Some(cast_bit)
+        } else {
+            None
+        }
     }
 
     pub fn put(&mut self, byte: u8) -> Result<(), ()> {
