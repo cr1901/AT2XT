@@ -3,6 +3,8 @@
 [![Latest version](https://img.shields.io/github/tag/cr1901/AT2XT.svg)](https://GitHub.com/cr1901/AT2XT/tags/)
 [![GitHub license](https://img.shields.io/github/license/cr1901/AT2XT.svg)](https://github.com/cr1901/AT2XT/blob/master/LICENSE.md)
 [![Last commit](https://img.shields.io/github/last-commit/cr1901/AT2XT.svg)](https://GitHub.com/cr1901/AT2XT/commit/)
+[![](https://tokei.rs/b1/github/cr1901/AT2XT?category=code)](https://github.com/cr1901/AT2XT)
+[![Awesome Badges](https://img.shields.io/badge/badges-awesome-green.svg)](https://github.com/Naereen/badges)
 [![Contact Me](https://img.shields.io/twitter/follow/cr1901.svg?label=Contact%20Me&&style=social)](https://twitter.com/cr1901)
 
 This repository provides the source, schematics, and Gerber files that converts
@@ -82,19 +84,9 @@ able to compile/function with a small to moderate amount of work
 (see "data layout" in Tags/Comparing Versions for an example).
 
 #### RTFM
-The most up-to-date version of the firmware uses the
-[Real Time For The Masses](http://www.rtfm-lang.org) (RTFM) Framework. RTFM has
-underwent various syntax changes for both the
-[Cortex M](https://github.com/japaric/cortex-m-rtfm) and
-[MSP430](https://github.com/japaric/msp430-rtfm) variants. However, due to
-[space concerns](https://github.com/japaric/cortex-m-rtfm/issues/41)
-with the most up-to-date version of the MSP430 RTFM implementation, AT2XT opts
-to use an earlier syntax of RTFM. Using up-to-date RTFM syntax/features is
-pending improvements in LLVM to convert runtime checks into compile time checks
-that thus do not take up space in the final binary. To avoid dependency problems
-for the time being, the variant of RTFM used is available
-[here](https://github.com/cr1901/msp430-rtfm/tree/at2xt-pin) under the
-`at2xt-pin` branch.
+AT2XT at present does not use [RTFM framework](http://www.rtfm-lang.org).
+This will likely be a version `4.x` milestone. `3.x` is dedicated to testing
+the `take`-based `Peripherals` [API](https://blog.japaric.io/brave-new-io/).
 
 ### Tags/Comparing Versions
 Tags to previous versions are included to compare the overhead of adding
@@ -121,9 +113,10 @@ Currently, it is up to the user to set up their toolchain to compile the files
 for programming an MSP430G2211 or compatible 14-pin DIP MSP430. I recommend the
 former, if only because MSP430 is already overkill for this project and G2211
 is a low-end model :P. However, I . When the C source was written, TI expected
-users to compile with Code Composer Studio (CCS). Today, a Makefile generic to
-all OSes and requiring only a command line should work, and will be available
-soon. Compile using -O2 or better.
+users to compile with Code Composer Studio (CCS). Today, I provide a generic
+Makefile instead. To compile, invoke `make`; there is only a single target,
+`at2xt.elf`. This requires the `msp430-elf-gcc` toolchain from the
+[Prerequisites](#prerequisites) section.
 
 The C source code itself should be easy to port to other microcontrollers,
 except for the use of a `__delay_cycles()` intrinsic. I had no choice here, as
