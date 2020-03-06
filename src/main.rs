@@ -66,7 +66,7 @@ fn TIMERA0(cs: CriticalSection) {
     p.timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
     // CCIFG will be reset when entering interrupt; no need to clear it.
     // Nesting is disabled, and chances of receiving second CCIFG in the ISR
-    // are nonexistant. */
+    // are nonexistant.
 }
 
 #[interrupt]
@@ -113,7 +113,7 @@ fn PORT1(cs: CriticalSection) {
                         // Dropping keys when the buffer is full is in line
                         // with what AT/XT hosts do. Saves 2 bytes on panic :)!
                         let _ = b.put(k);
-                    },
+                    }
                     Err(_) => {}
                 },
                 None => {}
@@ -273,16 +273,16 @@ pub fn send_byte_to_pc(mut byte: u8) -> () {
     // The host cannot send data; the only communication it can do with the micro is pull
     // the CLK (reset) and DATA (shift register full) low.
     // Wait for the host to release the lines.
-
     while mspint::free(|cs| {
         let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+        let clk_or_data_unset =
+            KEYBOARD_PINS.xt_clk.is_unset(port) || KEYBOARD_PINS.xt_data.is_unset(port);
 
-        if KEYBOARD_PINS.xt_clk.is_unset(port) || KEYBOARD_PINS.xt_data.is_unset(port) {
-            true
-        } else {
+        if !clk_or_data_unset {
             KEYBOARD_PINS.xt_out(port);
-            false
         }
+
+        clk_or_data_unset
     }) {}
 
     send_xt_bit(0);
@@ -323,13 +323,13 @@ fn send_byte_to_at_keyboard(byte: u8) -> () {
     I/O read. Can it be done without overhead of CriticalSection? */
     while mspint::free(|cs| {
         let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+        let unset = KEYBOARD_PINS.at_clk.is_unset(port);
 
-        if KEYBOARD_PINS.at_clk.is_unset(port) {
-            true
-        } else {
+        if !unset {
             KEYBOARD_PINS.at_inhibit(port);
-            false
         }
+
+        unset
     }) {}
 
     delay(us_to_ticks!(100));
