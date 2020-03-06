@@ -277,14 +277,13 @@ pub fn send_byte_to_pc(mut byte: u8) -> () {
     while mspint::free(|cs| {
         let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
 
-        KEYBOARD_PINS.xt_clk.is_unset(port) || KEYBOARD_PINS.xt_data.is_unset(port)
+        if KEYBOARD_PINS.xt_clk.is_unset(port) || KEYBOARD_PINS.xt_data.is_unset(port) {
+            true
+        } else {
+            KEYBOARD_PINS.xt_out(port);
+            false
+        }
     }) {}
-
-    mspint::free(|cs| {
-        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
-
-        KEYBOARD_PINS.xt_out(port);
-    });
 
     send_xt_bit(0);
     send_xt_bit(1);
@@ -325,14 +324,13 @@ fn send_byte_to_at_keyboard(byte: u8) -> () {
     while mspint::free(|cs| {
         let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
 
-        KEYBOARD_PINS.at_clk.is_unset(port)
+        if KEYBOARD_PINS.at_clk.is_unset(port) {
+            true
+        } else {
+            KEYBOARD_PINS.at_inhibit(port);
+            false
+        }
     }) {}
-
-    mspint::free(|cs| {
-        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
-
-        KEYBOARD_PINS.at_inhibit(port);
-    });
 
     delay(us_to_ticks!(100));
 
