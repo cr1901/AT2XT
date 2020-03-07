@@ -171,7 +171,7 @@ fn init(cs: CriticalSection) {
 fn main(cs: CriticalSection) -> ! {
     init(cs);
 
-    send_byte_to_at_keyboard(0xFF);
+    send_byte_to_at_keyboard(0xFF).unwrap();
 
     let mut loop_cmd: Cmd;
     let mut loop_reply: ProcReply = ProcReply::init();
@@ -219,7 +219,7 @@ fn main(cs: CriticalSection) -> ! {
 
                         KEYBOARD_PINS.xt_sense.is_unset(port)
                     }) {
-                        send_byte_to_at_keyboard(0xFF);
+                        send_byte_to_at_keyboard(0xFF).unwrap();
                         send_byte_to_pc(0xAA).unwrap();
                         xt_reset = true;
                         break;
@@ -325,9 +325,30 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
     Ok(())
 }
 
-fn send_byte_to_at_keyboard(byte: u8) -> () {
+fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
+    fn wait_for_at_keyboard() -> Result<bool, ()> {
+        mspint::free(|cs| {
+            let port = match PERIPHERALS.borrow(cs).get() {
+                Some(p) => &p.port,
+                None => return Err(())
+            };
+
+            let unset = KEYBOARD_PINS.at_clk.is_unset(port);
+
+            if !unset {
+                KEYBOARD_PINS.at_inhibit(port);
+            }
+
+            Ok(unset)
+        })
+    }
+
     mspint::free(|cs| {
-        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+        let port = match PERIPHERALS.borrow(cs).get() {
+            Some(p) => &p.port,
+            None => return Err(())
+        };
+
         let mut key_out = KEY_OUT.borrow(cs).get();
 
         // XXX: key_out.put(byte).unwrap() is misoptimized
@@ -342,33 +363,32 @@ fn send_byte_to_at_keyboard(byte: u8) -> () {
         // context to touch this variable.
         KEY_OUT.borrow(cs).set(key_out);
         KEYBOARD_PINS.disable_at_clk_int(port);
-    });
+        Ok(())
+    })?;
 
     /* If/when timer int is enabled, this loop really needs to allow preemption during
     I/O read. Can it be done without overhead of CriticalSection? */
-    while mspint::free(|cs| {
-        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
-        let unset = KEYBOARD_PINS.at_clk.is_unset(port);
+    while wait_for_at_keyboard()? {}
 
-        if !unset {
-            KEYBOARD_PINS.at_inhibit(port);
-        }
-
-        unset
-    }) {}
-
-    let _ = delay(us_to_ticks!(100));
+    delay(us_to_ticks!(100))?;
 
     mspint::free(|cs| {
-        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+        let port = match PERIPHERALS.borrow(cs).get() {
+            Some(p) => &p.port,
+            None => return Err(())
+        };
 
         KEYBOARD_PINS.at_data.unset(port);
-    });
+        Ok(())
+    })?;
 
-    let _ = delay(us_to_ticks!(33));
+    delay(us_to_ticks!(33))?;
 
     mspint::free(|cs| {
-        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+        let port = match PERIPHERALS.borrow(cs).get() {
+            Some(p) => &p.port,
+            None => return Err(())
+        };
 
         KEYBOARD_PINS.at_clk.set(port);
         KEYBOARD_PINS.at_clk.mk_in(port);
@@ -379,17 +399,20 @@ fn send_byte_to_at_keyboard(byte: u8) -> () {
         }
         HOST_MODE.store(true);
         DEVICE_ACK.store(false);
-    });
+        Ok(())
+    })?;
 
     while !DEVICE_ACK.load() {}
 
     HOST_MODE.store(false);
+
+    Ok(())
 }
 
 fn toggle_leds(mask: u8) -> Result<(), ()> {
-    send_byte_to_at_keyboard(0xED);
+    send_byte_to_at_keyboard(0xED)?;
     delay(us_to_ticks!(3000))?;
-    send_byte_to_at_keyboard(mask);
+    send_byte_to_at_keyboard(mask)?;
     Ok(())
 }
 
