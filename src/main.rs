@@ -251,7 +251,7 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
     mspint::free(|cs| {
         let port = match PERIPHERALS.borrow(cs).get() {
             Some(p) => &p.port,
-            None => return Err(())
+            None => return Err(()),
         };
 
         if bit == 1 {
@@ -270,7 +270,7 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
     mspint::free(|cs| {
         let port = match PERIPHERALS.borrow(cs).get() {
             Some(p) => &p.port,
-            None => return Err(())
+            None => return Err(()),
         };
 
         KEYBOARD_PINS.xt_clk.set(port);
@@ -285,7 +285,7 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
         mspint::free(|cs| {
             let port = match PERIPHERALS.borrow(cs).get() {
                 Some(p) => &p.port,
-                None => return Err(())
+                None => return Err(()),
             };
 
             let clk_or_data_unset =
@@ -315,7 +315,7 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
     mspint::free(|cs| {
         let port = match PERIPHERALS.borrow(cs).get() {
             Some(p) => &p.port,
-            None => return Err(())
+            None => return Err(()),
         };
 
         KEYBOARD_PINS.xt_in(port);
@@ -330,7 +330,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
         mspint::free(|cs| {
             let port = match PERIPHERALS.borrow(cs).get() {
                 Some(p) => &p.port,
-                None => return Err(())
+                None => return Err(()),
             };
 
             let unset = KEYBOARD_PINS.at_clk.is_unset(port);
@@ -346,7 +346,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     mspint::free(|cs| {
         let port = match PERIPHERALS.borrow(cs).get() {
             Some(p) => &p.port,
-            None => return Err(())
+            None => return Err(()),
         };
 
         let mut key_out = KEY_OUT.borrow(cs).get();
@@ -375,7 +375,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     mspint::free(|cs| {
         let port = match PERIPHERALS.borrow(cs).get() {
             Some(p) => &p.port,
-            None => return Err(())
+            None => return Err(()),
         };
 
         KEYBOARD_PINS.at_data.unset(port);
@@ -387,7 +387,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     mspint::free(|cs| {
         let port = match PERIPHERALS.borrow(cs).get() {
             Some(p) => &p.port,
-            None => return Err(())
+            None => return Err(()),
         };
 
         KEYBOARD_PINS.at_clk.set(port);
@@ -442,7 +442,7 @@ fn start_timer(time: u16) -> Result<(), ()> {
     mspint::free(|cs| {
         let timer = match PERIPHERALS.borrow(cs).get() {
             Some(p) => &p.timer,
-            None => return Err(())
+            None => return Err(()),
         };
 
         TIMEOUT.store(false);

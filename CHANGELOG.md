@@ -11,6 +11,31 @@ as optimizations, bugs, and code cleanup are pooled into minor releases.
 # AT2XT Firmware
 ## [Unreleased]
 
+## [3.0.0]
+Version [3.0.0] is the first version of AT2XT using the newer `take`-based
+[singleton API](https://blog.japaric.io/brave-new-io/).
+
+### Added
+- `Makefile` for C code in `legacy-src` directory for comparison purposes
+  (only 2.5 years late!).
+
+### Fixed
+- `KeycodeBuffer` now checks if the queue is full, and will not overwrite old
+  entries if the queue is full.
+
+### Changed
+- Remove the ancient RTFM version for now and use `CriticalSection`s/`msp430::interrupt::free`
+  as appropriate to access I/O.
+- Use [msp430-rt] version `0.2.4` to get access to `CriticalSection`
+  optimizations- saving approximately 60 bytes.
+- Various optimizations to further save space (~60 more bytes), including:
+  - `KeycodeBuffer`'s bounds checks are optimized out.
+  - `keymap::to_xt()` returns `Option<u8>`; processing the `None` variant
+     saves space.
+  - Combined `CriticalSection`s when exiting `while` loops.
+- Most functions now return `Result<(),()>`, which offsets the size gains
+  pretty much exactly.
+
 ## [2.3.0]
 Version [2.3.0] is a stopgap release meant to provide a clean break between
 the old unsound `borrow`-based peripherals API and the newer `take`-based
@@ -365,7 +390,8 @@ should not be manufactured. A new design will follow shortly.
 [panic_msp430]: https://github.com/YuhanLiin/panic-msp430
 [compiler-builtins]: https://github.com/rust-lang-nursery/compiler-builtins
 
-[Unreleased]: https://github.com/cr1901/AT2XT/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/cr1901/AT2XT/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/cr1901/AT2XT/compare/v2.3.0...v3.0.0
 [2.3.0]: https://github.com/cr1901/AT2XT/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/cr1901/AT2XT/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/cr1901/AT2XT/compare/v2.0.0...v2.1.0
