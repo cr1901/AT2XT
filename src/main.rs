@@ -197,7 +197,7 @@ fn main(cs: CriticalSection) -> ! {
                 ProcReply::ClearedBuffer
             }
             Cmd::ToggleLed(m) => {
-                toggle_leds(m);
+                toggle_leds(m).unwrap();
                 ProcReply::LedToggled(m)
             }
             Cmd::SendXTKey(k) => {
@@ -265,7 +265,7 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
         Ok(())
     })?;
 
-    delay(us_to_ticks!(55));
+    delay(us_to_ticks!(55))?;
 
     mspint::free(|cs| {
         let port = match PERIPHERALS.borrow(cs).get() {
@@ -357,7 +357,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> () {
         unset
     }) {}
 
-    delay(us_to_ticks!(100));
+    let _ = delay(us_to_ticks!(100));
 
     mspint::free(|cs| {
         let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
@@ -365,7 +365,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> () {
         KEYBOARD_PINS.at_data.unset(port);
     });
 
-    delay(us_to_ticks!(33));
+    let _ = delay(us_to_ticks!(33));
 
     mspint::free(|cs| {
         let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
@@ -386,14 +386,15 @@ fn send_byte_to_at_keyboard(byte: u8) -> () {
     HOST_MODE.store(false);
 }
 
-fn toggle_leds(mask: u8) -> () {
+fn toggle_leds(mask: u8) -> Result<(), ()> {
     send_byte_to_at_keyboard(0xED);
-    delay(us_to_ticks!(3000));
+    delay(us_to_ticks!(3000))?;
     send_byte_to_at_keyboard(mask);
+    Ok(())
 }
 
 #[cfg(not(feature = "use-timer"))]
-fn delay(n: u16) {
+fn delay(n: u16)  -> Result<(), ()> {
     unsafe {
         asm!(r#"
 1:
@@ -401,19 +402,28 @@ fn delay(n: u16) {
     jne 1b
     "# :: "{r12}"(n) : "r12" : "volatile");
     }
+
+    Ok(())
 }
 
 #[cfg(feature = "use-timer")]
-fn delay(time: u16) {
-    start_timer(time);
+fn delay(time: u16) -> Result<(), ()> {
+    start_timer(time)?;
     while !TIMEOUT.load() {}
+
+    Ok(())
 }
 
 #[cfg(feature = "use-timer")]
-fn start_timer(time: u16) -> () {
+fn start_timer(time: u16) -> Result<(), ()> {
     mspint::free(|cs| {
-        let timer = &PERIPHERALS.borrow(cs).get().unwrap().timer;
+        let timer = match PERIPHERALS.borrow(cs).get() {
+            Some(p) => &p.timer,
+            None => return Err(())
+        };
+
         TIMEOUT.store(false);
         timer.taccr0.write(|w| unsafe { w.bits(time) });
+        Ok(())
     })
 }
