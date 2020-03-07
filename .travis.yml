@@ -2,7 +2,6 @@ language: rust
 rust:
   - nightly
 env:
-  - TARGET=default
   - TARGET=timer
 install:
   - cargo install --list | grep 'xargo' || cargo install xargo

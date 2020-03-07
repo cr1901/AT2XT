@@ -23,7 +23,6 @@ use keybuffer::{KeyIn, KeyOut, KeycodeBuffer};
 mod driver;
 use driver::KeyboardPins;
 
-#[cfg(feature = "use-timer")]
 macro_rules! us_to_ticks {
     ($u:expr) => {
         // Timer is 100000 Hz, thus granularity of 10us.
@@ -31,21 +30,11 @@ macro_rules! us_to_ticks {
     };
 }
 
-#[cfg(not(feature = "use-timer"))]
-macro_rules! us_to_ticks {
-    ($u:expr) => {
-        // Delay is approx clock speed, thus granularity of 0.625us.
-        ($u * 16) / 10
-    };
-}
-
 struct At2XtPeripherals {
     port: msp430g2211::PORT_1_2,
-    #[cfg(feature = "use-timer")]
     timer: msp430g2211::TIMER_A2,
 }
 
-#[cfg(feature = "use-timer")]
 static TIMEOUT: AtomicBool = AtomicBool::new(false);
 static HOST_MODE: AtomicBool = AtomicBool::new(false);
 static DEVICE_ACK: AtomicBool = AtomicBool::new(false);
@@ -56,7 +45,6 @@ static KEY_IN: Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
 static KEY_OUT: Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
 static PERIPHERALS: Mutex<OnceCell<At2XtPeripherals>> = Mutex::new(OnceCell::new());
 
-#[cfg(feature = "use-timer")]
 #[interrupt]
 fn TIMERA0(cs: CriticalSection) {
     TIMEOUT.store(true);
@@ -144,18 +132,14 @@ fn init(cs: CriticalSection) {
         .write(|w| w.xt2off().set_bit().rsel3().set_bit()); // XT2 off, Range Select 7.
     p.SYSTEM_CLOCK.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4.
 
-    #[cfg(feature = "use-timer")]
-    {
-        p.TIMER_A2.taccr0.write(|w| unsafe { w.bits(0x0000) });
-        p.TIMER_A2
-            .tactl
-            .write(|w| w.tassel().tassel_2().id().id_2().mc().mc_1());
-        p.TIMER_A2.tacctl0.write(|w| w.ccie().set_bit());
-    }
+    p.TIMER_A2.taccr0.write(|w| unsafe { w.bits(0x0000) });
+    p.TIMER_A2
+        .tactl
+        .write(|w| w.tassel().tassel_2().id().id_2().mc().mc_1());
+    p.TIMER_A2.tacctl0.write(|w| w.ccie().set_bit());
 
     let shared = At2XtPeripherals {
         port: p.PORT_1_2,
-        #[cfg(feature = "use-timer")]
         timer: p.TIMER_A2,
     };
 
@@ -416,20 +400,6 @@ fn toggle_leds(mask: u8) -> Result<(), ()> {
     Ok(())
 }
 
-#[cfg(not(feature = "use-timer"))]
-fn delay(n: u16)  -> Result<(), ()> {
-    unsafe {
-        asm!(r#"
-1:
-    dec $0
-    jne 1b
-    "# :: "{r12}"(n) : "r12" : "volatile");
-    }
-
-    Ok(())
-}
-
-#[cfg(feature = "use-timer")]
 fn delay(time: u16) -> Result<(), ()> {
     start_timer(time)?;
     while !TIMEOUT.load() {}
@@ -437,7 +407,6 @@ fn delay(time: u16) -> Result<(), ()> {
     Ok(())
 }
 
-#[cfg(feature = "use-timer")]
 fn start_timer(time: u16) -> Result<(), ()> {
     mspint::free(|cs| {
         let timer = match PERIPHERALS.borrow(cs).get() {
