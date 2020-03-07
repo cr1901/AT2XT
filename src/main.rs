@@ -201,7 +201,7 @@ fn main(cs: CriticalSection) -> ! {
                 ProcReply::LedToggled(m)
             }
             Cmd::SendXTKey(k) => {
-                send_byte_to_pc(k);
+                send_byte_to_pc(k).unwrap();
                 ProcReply::SentKey(k)
             }
             Cmd::WaitForKey => {
@@ -220,7 +220,7 @@ fn main(cs: CriticalSection) -> ! {
                         KEYBOARD_PINS.xt_sense.is_unset(port)
                     }) {
                         send_byte_to_at_keyboard(0xFF);
-                        send_byte_to_pc(0xAA);
+                        send_byte_to_pc(0xAA).unwrap();
                         xt_reset = true;
                         break;
                     }
@@ -247,9 +247,12 @@ fn main(cs: CriticalSection) -> ! {
     }
 }
 
-pub fn send_xt_bit(bit: u8) -> () {
+pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
     mspint::free(|cs| {
-        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+        let port = match PERIPHERALS.borrow(cs).get() {
+            Some(p) => &p.port,
+            None => return Err(())
+        };
 
         if bit == 1 {
             KEYBOARD_PINS.xt_data.set(port);
@@ -258,46 +261,68 @@ pub fn send_xt_bit(bit: u8) -> () {
         }
 
         KEYBOARD_PINS.xt_clk.unset(port);
-    });
+
+        Ok(())
+    })?;
 
     delay(us_to_ticks!(55));
 
     mspint::free(|cs| {
-        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+        let port = match PERIPHERALS.borrow(cs).get() {
+            Some(p) => &p.port,
+            None => return Err(())
+        };
 
         KEYBOARD_PINS.xt_clk.set(port);
-    });
+        Ok(())
+    })?;
+
+    Ok(())
 }
 
-pub fn send_byte_to_pc(mut byte: u8) -> () {
+pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
+    fn wait_for_host() -> Result<bool, ()> {
+        mspint::free(|cs| {
+            let port = match PERIPHERALS.borrow(cs).get() {
+                Some(p) => &p.port,
+                None => return Err(())
+            };
+
+            let clk_or_data_unset =
+                KEYBOARD_PINS.xt_clk.is_unset(port) || KEYBOARD_PINS.xt_data.is_unset(port);
+
+            if !clk_or_data_unset {
+                KEYBOARD_PINS.xt_out(port);
+            }
+
+            Ok(clk_or_data_unset)
+        })
+    };
+
     // The host cannot send data; the only communication it can do with the micro is pull
     // the CLK (reset) and DATA (shift register full) low.
     // Wait for the host to release the lines.
-    while mspint::free(|cs| {
-        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
-        let clk_or_data_unset =
-            KEYBOARD_PINS.xt_clk.is_unset(port) || KEYBOARD_PINS.xt_data.is_unset(port);
+    while wait_for_host()? {}
 
-        if !clk_or_data_unset {
-            KEYBOARD_PINS.xt_out(port);
-        }
-
-        clk_or_data_unset
-    }) {}
-
-    send_xt_bit(0);
-    send_xt_bit(1);
+    send_xt_bit(0)?;
+    send_xt_bit(1)?;
 
     for _ in 0..8 {
-        send_xt_bit(byte & 0x01); /* Send data... */
+        send_xt_bit(byte & 0x01)?; /* Send data... */
         byte = byte >> 1;
     }
 
     mspint::free(|cs| {
-        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+        let port = match PERIPHERALS.borrow(cs).get() {
+            Some(p) => &p.port,
+            None => return Err(())
+        };
 
         KEYBOARD_PINS.xt_in(port);
-    });
+        Ok(())
+    })?;
+
+    Ok(())
 }
 
 fn send_byte_to_at_keyboard(byte: u8) -> () {
