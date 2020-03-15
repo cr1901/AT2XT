@@ -1,6 +1,5 @@
 #![no_main]
 #![no_std]
-#![feature(asm)]
 #![feature(abi_msp430_interrupt)]
 
 extern crate panic_msp430;

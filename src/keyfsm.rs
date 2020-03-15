@@ -20,7 +20,6 @@ mod keymap {
     }
 }
 
-#[derive(Debug)]
 pub enum Cmd {
     WaitForKey,
     ClearBuffer, // If Reset Occurs.
@@ -45,7 +44,6 @@ impl ProcReply {
     }
 }
 
-#[derive(Debug)]
 enum State {
     NotInKey,
     SimpleKey(u8),

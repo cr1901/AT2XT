@@ -33,6 +33,7 @@ pub fn disable_at_clk_int(p: &msp430g2211::PORT_1_2) -> () {
 }
 
 // Unsafe because can be used in contexts where it's assumed pin ints can't occur.
+#[allow(unused_unsafe)]
 pub unsafe fn enable_at_clk_int(p: &msp430g2211::PORT_1_2) -> () {
     p.p1ie
         .modify(|r, w| set_bits_with_mask!(r, w, at_clk.bitmask()));
