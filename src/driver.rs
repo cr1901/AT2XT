@@ -85,7 +85,7 @@ impl Pin {
     }
 
     fn bitmask(&self) -> u8 {
-        (1 << self.loc)
+        1 << self.loc
     }
 
     pub fn set(&self, p: &msp430g2211::PORT_1_2) -> () {

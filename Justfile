@@ -18,6 +18,9 @@ timer-extra:
     msp430-elf-readelf -r --wide {{TARGET}}.o > {{TARGET}}.reloc
     msp430-elf-size {{TARGET}}
 
+fix:
+  xargo fix --target=msp430-none-elf
+
 # Remove AT2XT and dependencies.
 clean:
     xargo clean

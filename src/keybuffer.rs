@@ -19,7 +19,7 @@ impl KeycodeBuffer {
     }
 
     pub fn is_empty(&self) -> bool {
-        (self.head.wrapping_sub(self.tail) == 0)
+        self.head.wrapping_sub(self.tail) == 0
     }
 
     pub fn put(&mut self, in_key: u16) -> Result<(), ()> {
