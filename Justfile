@@ -35,6 +35,9 @@ fix:
 fix-clippy:
   xargo fix -Z unstable-options --target=msp430-none-elf --clippy
 
+fmt:
+  xargo fmt
+
 # Remove AT2XT and dependencies.
 clean:
     xargo clean

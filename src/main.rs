@@ -93,7 +93,7 @@ fn PORT1(cs: CriticalSection) {
             driver::at_inhibit(port); // Ask keyboard to not send anything while processing keycode.
 
             if let Some(k) = keyin.take() {
-                if let Ok(mut b) =  IN_BUFFER.borrow(&cs).try_borrow_mut() {
+                if let Ok(mut b) = IN_BUFFER.borrow(&cs).try_borrow_mut() {
                     // Dropping keys when the buffer is full is in line
                     // with what AT/XT hosts do. Saves 2 bytes on panic :)!
                     let _ = b.put(k);
@@ -269,8 +269,7 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
                 None => return Err(()),
             };
 
-            let clk_or_data_unset =
-                driver::xt_clk.is_unset(port) || driver::xt_data.is_unset(port);
+            let clk_or_data_unset = driver::xt_clk.is_unset(port) || driver::xt_data.is_unset(port);
 
             if !clk_or_data_unset {
                 driver::xt_out(port);

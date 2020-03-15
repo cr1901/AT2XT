@@ -13,7 +13,7 @@ impl KeycodeBuffer {
         }
     }
 
-    pub fn flush(&mut self)  {
+    pub fn flush(&mut self) {
         self.tail = 0;
         self.head = 0;
     }
