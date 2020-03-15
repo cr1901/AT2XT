@@ -18,8 +18,17 @@ timer-extra:
     msp430-elf-readelf -r --wide {{TARGET}}.o > {{TARGET}}.reloc
     msp430-elf-size {{TARGET}}
 
+# Run clippy on AT2XT.
+clippy:
+  xargo clippy --target=msp430-none-elf
+
+# Fix warnings in AT2XT.
 fix:
   xargo fix --target=msp430-none-elf
+
+# Fix warnings and attempt to apply clippy suggestions (nightly only).
+fix-clippy:
+  xargo fix -Z unstable-options --target=msp430-none-elf --clippy
 
 # Remove AT2XT and dependencies.
 clean:
