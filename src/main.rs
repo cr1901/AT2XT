@@ -21,7 +21,6 @@ mod keybuffer;
 use keybuffer::{KeyIn, KeyOut, KeycodeBuffer};
 
 mod driver;
-use driver::KeyboardPins;
 
 macro_rules! us_to_ticks {
     ($u:expr) => {
@@ -40,7 +39,6 @@ static HOST_MODE: AtomicBool = AtomicBool::new(false);
 static DEVICE_ACK: AtomicBool = AtomicBool::new(false);
 
 static IN_BUFFER: Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
-static KEYBOARD_PINS: KeyboardPins = KeyboardPins::new();
 static KEY_IN: Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
 static KEY_OUT: Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
 static PERIPHERALS: Mutex<OnceCell<At2XtPeripherals>> = Mutex::new(OnceCell::new());
@@ -66,34 +64,34 @@ fn PORT1(cs: CriticalSection) {
 
         if let Some(k) = keyout.shift_out() {
             if k {
-                KEYBOARD_PINS.at_data.set(port);
+                driver::at_data.set(port);
             } else {
-                KEYBOARD_PINS.at_data.unset(port);
+                driver::at_data.unset(port);
             }
 
             // Immediately after sending out the Stop Bit, we should release the lines.
             if keyout.is_empty() {
-                KEYBOARD_PINS.at_idle(port);
+                driver::at_idle(port);
             }
         } else {
             // TODO: Is it possible to get a spurious clock interrupt and
             // thus skip this logic?
-            if KEYBOARD_PINS.at_data.is_unset(port) {
+            if driver::at_data.is_unset(port) {
                 DEVICE_ACK.store(true);
                 keyout.clear();
             }
         }
 
         KEY_OUT.borrow(&cs).set(keyout);
-        KEYBOARD_PINS.clear_at_clk_int(port);
+        driver::clear_at_clk_int(port);
     } else {
         let mut keyin = KEY_IN.borrow(&cs).get();
 
         // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
         // sync for nested interrupts while not giving up safety?
         // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-        if keyin.shift_in(KEYBOARD_PINS.at_data.is_set(port)).is_err() {
-            KEYBOARD_PINS.at_inhibit(port); // Ask keyboard to not send anything while processing keycode.
+        if keyin.shift_in(driver::at_data.is_set(port)).is_err() {
+            driver::at_inhibit(port); // Ask keyboard to not send anything while processing keycode.
 
             match keyin.take() {
                 Some(k) => match IN_BUFFER.borrow(&cs).try_borrow_mut() {
@@ -109,11 +107,11 @@ fn PORT1(cs: CriticalSection) {
 
             keyin.clear();
 
-            KEYBOARD_PINS.at_idle(port);
+            driver::at_idle(port);
         }
 
         KEY_IN.borrow(&cs).set(keyin);
-        KEYBOARD_PINS.clear_at_clk_int(port);
+        driver::clear_at_clk_int(port);
     }
 }
 
@@ -125,7 +123,7 @@ fn init(cs: CriticalSection) {
         w.bits(PASSWORD).wdthold().set_bit()
     });
 
-    KEYBOARD_PINS.idle(&p.PORT_1_2);
+    driver::idle(&p.PORT_1_2);
 
     p.SYSTEM_CLOCK
         .bcsctl1
@@ -201,7 +199,7 @@ fn main(cs: CriticalSection) -> ! {
                     if mspint::free(|cs| {
                         let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
 
-                        KEYBOARD_PINS.xt_sense.is_unset(port)
+                        driver::xt_sense.is_unset(port)
                     }) {
                         send_byte_to_at_keyboard(0xFF).unwrap();
                         send_byte_to_pc(0xAA).unwrap();
@@ -239,12 +237,12 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
         };
 
         if bit == 1 {
-            KEYBOARD_PINS.xt_data.set(port);
+            driver::xt_data.set(port);
         } else {
-            KEYBOARD_PINS.xt_data.unset(port);
+            driver::xt_data.unset(port);
         }
 
-        KEYBOARD_PINS.xt_clk.unset(port);
+        driver::xt_clk.unset(port);
 
         Ok(())
     })?;
@@ -257,7 +255,7 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
             None => return Err(()),
         };
 
-        KEYBOARD_PINS.xt_clk.set(port);
+        driver::xt_clk.set(port);
         Ok(())
     })?;
 
@@ -273,10 +271,10 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
             };
 
             let clk_or_data_unset =
-                KEYBOARD_PINS.xt_clk.is_unset(port) || KEYBOARD_PINS.xt_data.is_unset(port);
+                driver::xt_clk.is_unset(port) || driver::xt_data.is_unset(port);
 
             if !clk_or_data_unset {
-                KEYBOARD_PINS.xt_out(port);
+                driver::xt_out(port);
             }
 
             Ok(clk_or_data_unset)
@@ -302,7 +300,7 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
             None => return Err(()),
         };
 
-        KEYBOARD_PINS.xt_in(port);
+        driver::xt_in(port);
         Ok(())
     })?;
 
@@ -317,10 +315,10 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
                 None => return Err(()),
             };
 
-            let unset = KEYBOARD_PINS.at_clk.is_unset(port);
+            let unset = driver::at_clk.is_unset(port);
 
             if !unset {
-                KEYBOARD_PINS.at_inhibit(port);
+                driver::at_inhibit(port);
             }
 
             Ok(unset)
@@ -346,7 +344,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
         // not set, it's not possible for the interrupt
         // context to touch this variable.
         KEY_OUT.borrow(cs).set(key_out);
-        KEYBOARD_PINS.disable_at_clk_int(port);
+        driver::disable_at_clk_int(port);
         Ok(())
     })?;
 
@@ -362,7 +360,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
             None => return Err(()),
         };
 
-        KEYBOARD_PINS.at_data.unset(port);
+        driver::at_data.unset(port);
         Ok(())
     })?;
 
@@ -374,12 +372,12 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
             None => return Err(()),
         };
 
-        KEYBOARD_PINS.at_clk.set(port);
-        KEYBOARD_PINS.at_clk.mk_in(port);
-        KEYBOARD_PINS.clear_at_clk_int(port);
+        driver::at_clk.set(port);
+        driver::at_clk.mk_in(port);
+        driver::clear_at_clk_int(port);
 
         unsafe {
-            KEYBOARD_PINS.enable_at_clk_int(port);
+            driver::enable_at_clk_int(port);
         }
         HOST_MODE.store(true);
         DEVICE_ACK.store(false);

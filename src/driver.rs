@@ -1,3 +1,5 @@
+#![allow(non_upper_case_globals)]
+
 use msp430g2211;
 
 macro_rules! set_bits_with_mask {
@@ -12,78 +14,64 @@ macro_rules! clear_bits_with_mask {
     };
 }
 
-pub struct KeyboardPins {
-    pub at_clk: Pin,
-    pub at_data: Pin,
-    pub xt_clk: Pin,
-    pub xt_data: Pin,
-    pub xt_sense: Pin,
+pub static at_clk: Pin = Pin::new(0);
+pub static at_data: Pin = Pin::new(4);
+pub static xt_clk: Pin = Pin::new(2);
+pub static xt_data: Pin = Pin::new(3);
+pub static xt_sense: Pin = Pin::new(1);
+
+pub fn idle(p: &msp430g2211::PORT_1_2) -> () {
+    p.p1dir.write(|w| unsafe { w.bits(0x00) });
+    p.p1ifg.modify(|r, w| clear_bits_with_mask!(r, w, at_clk.bitmask()));
+    p.p1ies.modify(|r, w| set_bits_with_mask!(r, w, at_clk.bitmask()));
+    p.p1ie.modify(|r, w| set_bits_with_mask!(r, w, at_clk.bitmask()));
 }
 
-impl KeyboardPins {
-    pub const fn new() -> KeyboardPins {
-        KeyboardPins {
-            at_clk: Pin::new(0),
-            at_data: Pin::new(4),
-            xt_clk: Pin::new(2),
-            xt_data: Pin::new(3),
-            xt_sense: Pin::new(1),
-        }
-    }
+pub fn disable_at_clk_int(p: &msp430g2211::PORT_1_2) -> () {
+    p.p1ie
+        .modify(|r, w| clear_bits_with_mask!(r, w, at_clk.bitmask()));
+}
 
-    pub fn idle(&self, p: &msp430g2211::PORT_1_2) -> () {
-        p.p1dir.write(|w| unsafe { w.bits(0x00) });
-        p.p1ifg.modify(|r, w| clear_bits_with_mask!(r, w, self.at_clk.bitmask()));
-        p.p1ies.modify(|r, w| set_bits_with_mask!(r, w, self.at_clk.bitmask()));
-        p.p1ie.modify(|r, w| set_bits_with_mask!(r, w, self.at_clk.bitmask()));
-    }
+// Unsafe because can be used in contexts where it's assumed pin ints can't occur.
+pub unsafe fn enable_at_clk_int(p: &msp430g2211::PORT_1_2) -> () {
+    p.p1ie
+        .modify(|r, w| set_bits_with_mask!(r, w, at_clk.bitmask()));
+}
 
-    pub fn disable_at_clk_int(&self, p: &msp430g2211::PORT_1_2) -> () {
-        p.p1ie
-            .modify(|r, w| clear_bits_with_mask!(r, w, self.at_clk.bitmask()));
-    }
+pub fn clear_at_clk_int(p: &msp430g2211::PORT_1_2) -> () {
+    p.p1ifg
+        .modify(|r, w| clear_bits_with_mask!(r, w, at_clk.bitmask()));
+}
 
-    // Unsafe because can be used in contexts where it's assumed pin ints can't occur.
-    pub unsafe fn enable_at_clk_int(&self, p: &msp430g2211::PORT_1_2) -> () {
-        p.p1ie
-            .modify(|r, w| set_bits_with_mask!(r, w, self.at_clk.bitmask()));
+pub fn at_idle(p: &msp430g2211::PORT_1_2) -> () {
+    at_clk.set(p);
+    at_data.set(p);
+    {
+        let at_mask: u8 = at_clk.bitmask() | at_data.bitmask();
+        p.p1dir.modify(|r, w| clear_bits_with_mask!(r, w, at_mask));
     }
+}
 
-    pub fn clear_at_clk_int(&self, p: &msp430g2211::PORT_1_2) -> () {
-        p.p1ifg
-            .modify(|r, w| clear_bits_with_mask!(r, w, self.at_clk.bitmask()));
+pub fn at_inhibit(p: &msp430g2211::PORT_1_2) -> () {
+    at_clk.unset(p);
+    at_data.set(p);
+    {
+        let at_mask: u8 = at_clk.bitmask() | at_data.bitmask();
+        p.p1dir.modify(|r, w| set_bits_with_mask!(r, w, at_mask));
     }
+}
 
-    pub fn at_idle(&self, p: &msp430g2211::PORT_1_2) -> () {
-        self.at_clk.set(p);
-        self.at_data.set(p);
-        {
-            let at_mask: u8 = self.at_clk.bitmask() | self.at_data.bitmask();
-            p.p1dir.modify(|r, w| clear_bits_with_mask!(r, w, at_mask));
-        }
-    }
+pub fn xt_out(p: &msp430g2211::PORT_1_2) -> () {
+    let xt_mask: u8 = xt_clk.bitmask() | xt_data.bitmask();
+    p.p1out.modify(|r, w| set_bits_with_mask!(r, w, xt_mask));
+    p.p1dir.modify(|r, w| set_bits_with_mask!(r, w, xt_mask));
+}
 
-    pub fn at_inhibit(&self, p: &msp430g2211::PORT_1_2) -> () {
-        self.at_clk.unset(p);
-        self.at_data.set(p);
-        {
-            let at_mask: u8 = self.at_clk.bitmask() | self.at_data.bitmask();
-            p.p1dir.modify(|r, w| set_bits_with_mask!(r, w, at_mask));
-        }
-    }
-
-    pub fn xt_out(&self, p: &msp430g2211::PORT_1_2) -> () {
-        let xt_mask: u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
-        p.p1out.modify(|r, w| set_bits_with_mask!(r, w, xt_mask));
-        p.p1dir.modify(|r, w| set_bits_with_mask!(r, w, xt_mask));
-    }
-
-    pub fn xt_in(&self, p: &msp430g2211::PORT_1_2) -> () {
-        let xt_mask: u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
-        p.p1out
-            .modify(|r, w| set_bits_with_mask!(r, w, self.xt_data.bitmask()));
-        p.p1dir.modify(|r, w| clear_bits_with_mask!(r, w, xt_mask));
-    }
+pub fn xt_in(p: &msp430g2211::PORT_1_2) -> () {
+    let xt_mask: u8 = xt_clk.bitmask() | xt_data.bitmask();
+    p.p1out
+        .modify(|r, w| set_bits_with_mask!(r, w, xt_data.bitmask()));
+    p.p1dir.modify(|r, w| clear_bits_with_mask!(r, w, xt_mask));
 }
 
 pub struct Pin {
