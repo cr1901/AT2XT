@@ -92,16 +92,12 @@ fn PORT1(cs: CriticalSection) {
         if keyin.shift_in(driver::at_data.is_set(port)).is_err() {
             driver::at_inhibit(port); // Ask keyboard to not send anything while processing keycode.
 
-            match keyin.take() {
-                Some(k) => match IN_BUFFER.borrow(&cs).try_borrow_mut() {
-                    Ok(mut b) => {
-                        // Dropping keys when the buffer is full is in line
-                        // with what AT/XT hosts do. Saves 2 bytes on panic :)!
-                        let _ = b.put(k);
-                    }
-                    Err(_) => {}
-                },
-                None => {}
+            if let Some(k) = keyin.take() {
+                if let Ok(mut b) =  IN_BUFFER.borrow(&cs).try_borrow_mut() {
+                    // Dropping keys when the buffer is full is in line
+                    // with what AT/XT hosts do. Saves 2 bytes on panic :)!
+                    let _ = b.put(k);
+                }
             }
 
             keyin.clear();
@@ -168,11 +164,10 @@ fn main(cs: CriticalSection) -> ! {
                     // XXX: IN_BUFFER.borrow(cs).borrow_mut() and
                     // IN_BUFFER.borrow(cs).try_borrow_mut().unwrap()
                     // bring in dead formatting code! Use explicit
-                    // match for now and handle errors by doing nothing.
+                    // if-let for now and handle errors by doing nothing.
 
-                    match IN_BUFFER.borrow(cs).try_borrow_mut() {
-                        Ok(mut b) => b.flush(),
-                        Err(_) => {}
+                    if let Ok(mut b) = IN_BUFFER.borrow(cs).try_borrow_mut() {
+                        b.flush()
                     }
                 });
                 ProcReply::ClearedBuffer
@@ -189,17 +184,22 @@ fn main(cs: CriticalSection) -> ! {
                 // The micro spends the majority of its life idle. It is possible for the host PC and
                 // the keyboard to send data to the micro at the same time. To keep control flow simple,
                 // the micro will only respond to host PC acknowledge requests if its idle.
+                fn reset_requested() -> bool {
+                    mspint::free(|cs| {
+                        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+
+                        driver::xt_sense.is_unset(port)
+                    })
+                };
+
                 let mut xt_reset: bool = false;
+
                 while mspint::free(|cs| match IN_BUFFER.borrow(cs).try_borrow_mut() {
                     Ok(b) => b.is_empty(),
                     Err(_) => true,
                 }) {
                     // If host computer wants to reset
-                    if mspint::free(|cs| {
-                        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
-
-                        driver::xt_sense.is_unset(port)
-                    }) {
+                    if reset_requested() {
                         send_byte_to_at_keyboard(0xFF).unwrap();
                         send_byte_to_pc(0xAA).unwrap();
                         xt_reset = true;
@@ -334,10 +334,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
 
         // XXX: key_out.put(byte).unwrap() is misoptimized
         // and brings in unused panic strings.
-        match key_out.put(byte) {
-            Ok(_) => {}
-            Err(_) => {} // Err(_) => { panic!() } // Even this brings in unused panic strings.
-        }
+        let _ = key_out.put(byte);
 
         // Safe outside of critical section: As long as HOST_MODE is
         // not set, it's not possible for the interrupt

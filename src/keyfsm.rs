@@ -74,19 +74,19 @@ impl Fsm {
     pub fn run(&mut self, curr_reply: &ProcReply) -> Result<Cmd, ()> {
         let next_state = self.next_state(curr_reply);
 
-        let next_cmd = match &next_state {
-            &State::NotInKey => Ok(Cmd::WaitForKey),
-            &State::SimpleKey(k) => match keymap::to_xt(k) {
+        let next_cmd = match next_state {
+            State::NotInKey => Ok(Cmd::WaitForKey),
+            State::SimpleKey(k) => match keymap::to_xt(k) {
                 Some(k) => Ok(Cmd::SendXTKey(k)),
                 None => Err(()),
             },
-            &State::PossibleBreakCode => Ok(Cmd::WaitForKey),
-            &State::KnownBreakCode(b) => match keymap::to_xt(b) {
+            State::PossibleBreakCode => Ok(Cmd::WaitForKey),
+            State::KnownBreakCode(b) => match keymap::to_xt(b) {
                 Some(b) => Ok(Cmd::SendXTKey(b | 0x80)),
                 None => Err(()),
             },
-            &State::UnmodifiedKey(u) => Ok(Cmd::SendXTKey(u)),
-            &State::ToggleLedFirst(l) => {
+            State::UnmodifiedKey(u) => Ok(Cmd::SendXTKey(u)),
+            State::ToggleLedFirst(l) => {
                 match l {
                     0x7e => Ok(Cmd::ToggleLed(self.led_mask ^ 0x01)), // Scroll
                     0x77 => Ok(Cmd::ToggleLed(self.led_mask ^ 0x02)), // Num
@@ -94,8 +94,8 @@ impl Fsm {
                     _ => Err(()),
                 }
             }
-            &State::ExpectingBufferClear => Ok(Cmd::ClearBuffer),
-            &State::Inconsistent => Err(()),
+            State::ExpectingBufferClear => Ok(Cmd::ClearBuffer),
+            State::Inconsistent => Err(()),
         };
 
         self.curr_state = next_state;

@@ -63,7 +63,7 @@ impl KeyIn {
         }
     }
 
-    fn is_full(&self) -> bool {
+    fn is_full(self) -> bool {
         self.pos >= 11
     }
 
@@ -109,7 +109,7 @@ impl KeyOut {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub fn is_empty(self) -> bool {
         self.pos > 9 // Data 0-7, Parity, and Stop. Start bit has to be handled specially b/c
                      // it's part of keyboard negotiation.
     }
@@ -139,7 +139,7 @@ impl KeyOut {
             let mut num_ones: u8 = 0;
 
             for _ in 0..8 {
-                num_ones += (sout & 0x01);
+                num_ones += sout & 0x01;
                 sout <<= 1;
             }
 
