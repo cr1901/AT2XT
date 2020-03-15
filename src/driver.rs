@@ -18,12 +18,9 @@ pub struct KeyboardPins {
     pub xt_clk: Pin,
     pub xt_data: Pin,
     pub xt_sense: Pin,
-    // was_initialized : bool
 }
 
 impl KeyboardPins {
-    // Safe as long as only one copy exists in memory (and it doesn't make sense for two copies to
-    // exist); P1DIR can only be accessed from within this module, and never from an interrupt.
     pub const fn new() -> KeyboardPins {
         KeyboardPins {
             at_clk: Pin::new(0),
@@ -34,10 +31,6 @@ impl KeyboardPins {
         }
     }
 
-    // Not safe in the general case, but in my code base, I only call this once during
-    // initialization before the only interrupts that touches these registers is enabled.
-    // Option 1: Possible to make fully safe using was_initialized?
-    // Pitfall 1: Does globally enable
     pub fn idle(&self, p: &msp430g2211::PORT_1_2) -> () {
         p.p1dir.write(|w| unsafe { w.bits(0x00) });
         p.p1ifg.modify(|r, w| clear_bits_with_mask!(r, w, self.at_clk.bitmask()));
@@ -62,8 +55,6 @@ impl KeyboardPins {
     }
 
     pub fn at_idle(&self, p: &msp430g2211::PORT_1_2) -> () {
-        // XXX: Mutable borrow happens twice if we borrow port first and then call these
-        // fns?
         self.at_clk.set(p);
         self.at_data.set(p);
         {
@@ -73,8 +64,6 @@ impl KeyboardPins {
     }
 
     pub fn at_inhibit(&self, p: &msp430g2211::PORT_1_2) -> () {
-        // XXX: Mutable borrow happens twice if we borrow port first and then call these
-        // fns?
         self.at_clk.unset(p);
         self.at_data.set(p);
         {
@@ -83,7 +72,6 @@ impl KeyboardPins {
         }
     }
 
-    // Why in japaric's closures access to the pins for an actual write aren't wrapped in unsafe?
     pub fn xt_out(&self, p: &msp430g2211::PORT_1_2) -> () {
         let xt_mask: u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
         p.p1out.modify(|r, w| set_bits_with_mask!(r, w, xt_mask));
