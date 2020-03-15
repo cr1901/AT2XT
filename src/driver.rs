@@ -83,14 +83,6 @@ impl KeyboardPins {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn at_send(&self, p: &msp430g2211::PORT_1_2) -> () {
-        self.at_clk.set(p);
-        self.at_data.set(p);
-        self.at_clk.mk_in(p);
-        self.at_data.mk_out(p);
-    }
-
     // Why in japaric's closures access to the pins for an actual write aren't wrapped in unsafe?
     pub fn xt_out(&self, p: &msp430g2211::PORT_1_2) -> () {
         let xt_mask: u8 = self.xt_clk.bitmask() | self.xt_data.bitmask();
@@ -132,12 +124,6 @@ impl Pin {
     pub fn mk_in(&self, p: &msp430g2211::PORT_1_2) -> () {
         p.p1dir
             .modify(|r, w| clear_bits_with_mask!(r, w, self.bitmask()));
-    }
-
-    #[allow(dead_code)]
-    pub fn mk_out(&self, p: &msp430g2211::PORT_1_2) -> () {
-        p.p1dir
-            .modify(|r, w| set_bits_with_mask!(r, w, self.bitmask()));
     }
 
     // No side effects from reading pins- these fcns are safe.
