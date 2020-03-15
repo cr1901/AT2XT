@@ -13,7 +13,7 @@ impl KeycodeBuffer {
         }
     }
 
-    pub fn flush(&mut self) -> () {
+    pub fn flush(&mut self)  {
         self.tail = 0;
         self.head = 0;
     }
@@ -76,7 +76,7 @@ impl KeyIn {
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         let cast_bit: u16 = if bit { 1 } else { 0 };
         self.contents = (self.contents << 1) | cast_bit;
-        self.pos = self.pos + 1;
+        self.pos += 1;
 
         if !self.is_full() {
             Ok(())
@@ -123,8 +123,8 @@ impl KeyOut {
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
         if !self.is_empty() {
             let cast_bit: bool = (self.contents & 0x01) == 1;
-            self.contents = self.contents >> 1;
-            self.pos = self.pos + 1;
+            self.contents >>= 1;
+            self.pos += 1;
             Some(cast_bit)
         } else {
             None
@@ -139,8 +139,8 @@ impl KeyOut {
             let mut num_ones: u8 = 0;
 
             for _ in 0..8 {
-                num_ones = num_ones + (sout & 0x01);
-                sout = sout << 1;
+                num_ones += (sout & 0x01);
+                sout <<= 1;
             }
 
             let stop_bit: u16 = 1 << 9;

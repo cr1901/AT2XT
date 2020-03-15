@@ -219,8 +219,8 @@ fn main(cs: CriticalSection) -> ! {
                             Err(_) => 0,
                         });
 
-                    bits_in = bits_in & !(0x4000 + 0x0001); // Mask out start/stop bit.
-                    bits_in = bits_in >> 2; // Remove stop bit and parity bit (FIXME: Check parity).
+                    bits_in &= !(0x4000 + 0x0001); // Mask out start/stop bit.
+                    bits_in >>= 2; // Remove stop bit and parity bit (FIXME: Check parity).
                     ProcReply::GrabbedKey((bits_in as u8).swap_bits())
                 }
             }
@@ -290,7 +290,7 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
 
     for _ in 0..8 {
         send_xt_bit(byte & 0x01)?; /* Send data... */
-        byte = byte >> 1;
+        byte >>= 1;
     }
 
     mspint::free(|cs| {
