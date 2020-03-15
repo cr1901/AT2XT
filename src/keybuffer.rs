@@ -78,19 +78,19 @@ impl KeyIn {
         self.contents = (self.contents << 1) | cast_bit;
         self.pos += 1;
 
-        if !self.is_full() {
-            Ok(())
-        } else {
+        if self.is_full() {
             Err(())
+        } else {
+            Ok(())
         }
     }
 
     pub fn take(&mut self) -> Option<u16> {
-        if !self.is_full() {
-            None
-        } else {
+        if self.is_full() {
             self.pos = 0;
             Some(self.contents)
+        } else {
+            None
         }
     }
 }
@@ -121,20 +121,18 @@ impl KeyOut {
 
     pub fn shift_out(&mut self) -> Option<bool> {
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
-        if !self.is_empty() {
+        if self.is_empty() {
+            None
+        } else {
             let cast_bit: bool = (self.contents & 0x01) == 1;
             self.contents >>= 1;
             self.pos += 1;
             Some(cast_bit)
-        } else {
-            None
         }
     }
 
     pub fn put(&mut self, byte: u8) -> Result<(), ()> {
-        if !self.is_empty() {
-            Err(())
-        } else {
+        if self.is_empty() {
             let mut sout = byte;
             let mut num_ones: u8 = 0;
 
@@ -148,6 +146,8 @@ impl KeyOut {
             self.contents = (byte as u16) | parity_bit | stop_bit;
             self.pos = 0;
             Ok(())
+        } else {
+            Err(())
         }
     }
 }
