@@ -13,7 +13,7 @@ mod keymap {
 
     pub fn to_xt(at_in: u8) -> Option<u8> {
         if at_in < 132 {
-            Some(KEYCODE_LUT[at_in as usize])
+            Some(KEYCODE_LUT[usize::from(at_in)])
         } else {
             None
         }
