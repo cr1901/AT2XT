@@ -75,12 +75,11 @@ impl Fsm {
         let next_state = self.next_state(curr_reply);
 
         let next_cmd = match next_state {
-            State::NotInKey => Ok(Cmd::WaitForKey),
+            State::NotInKey | State::PossibleBreakCode => Ok(Cmd::WaitForKey),
             State::SimpleKey(k) => match keymap::to_xt(k) {
                 Some(k) => Ok(Cmd::SendXTKey(k)),
                 None => Err(()),
             },
-            State::PossibleBreakCode => Ok(Cmd::WaitForKey),
             State::KnownBreakCode(b) => match keymap::to_xt(b) {
                 Some(b) => Ok(Cmd::SendXTKey(b | 0x80)),
                 None => Err(()),
@@ -105,15 +104,15 @@ impl Fsm {
     fn next_state(&mut self, curr_reply: &ProcReply) -> State {
         match (&self.curr_state, curr_reply) {
             (_, &ProcReply::KeyboardReset) => State::ExpectingBufferClear,
-            (&State::NotInKey, &ProcReply::NothingToDo) => State::NotInKey,
+            (&State::NotInKey, &ProcReply::NothingToDo)
+            | (&State::SimpleKey(_), &ProcReply::SentKey(_))
+            | (&State::KnownBreakCode(_), &ProcReply::SentKey(_))
+            | (&State::UnmodifiedKey(_), &ProcReply::SentKey(_))
+            | (&State::ExpectingBufferClear, &ProcReply::ClearedBuffer) => State::NotInKey,
             (&State::NotInKey, &ProcReply::GrabbedKey(k)) => {
                 match k {
-                    0xaa => State::NotInKey,
-                    // TODO: Actually, these should never be sent unprompted.
-                    0xfa => State::NotInKey,
-                    0xfe => State::NotInKey,
-                    0xee => State::NotInKey,
-
+                    // TODO: 0xfa, 0xfe, and 0xee should never be sent unprompted.
+                    0xaa | 0xfa | 0xfe | 0xee => State::NotInKey,
                     0xf0 => State::PossibleBreakCode,
                     0xe0 => State::UnmodifiedKey(k),
                     0xe1 => {
@@ -124,11 +123,10 @@ impl Fsm {
                     _ => State::SimpleKey(k),
                 }
             }
-            (&State::SimpleKey(_), &ProcReply::SentKey(_)) => State::NotInKey,
             (&State::PossibleBreakCode, &ProcReply::GrabbedKey(k)) => {
                 match k {
                     // LEDs => State::ToggleLed()
-                    0x7e => State::ToggleLedFirst(k),
+                    0x7e | 0x58 => State::ToggleLedFirst(k),
                     0x77 => {
                         if self.expecting_pause {
                             self.expecting_pause = false;
@@ -137,17 +135,13 @@ impl Fsm {
                             State::ToggleLedFirst(k)
                         }
                     }
-                    0x58 => State::ToggleLedFirst(k),
                     _ => State::KnownBreakCode(k),
                 }
             }
-            (&State::KnownBreakCode(_), &ProcReply::SentKey(_)) => State::NotInKey,
-            (&State::UnmodifiedKey(_), &ProcReply::SentKey(_)) => State::NotInKey,
             (&State::ToggleLedFirst(l), &ProcReply::LedToggled(m)) => {
                 self.led_mask = m;
                 State::KnownBreakCode(l)
             }
-            (&State::ExpectingBufferClear, &ProcReply::ClearedBuffer) => State::NotInKey,
             (_, _) => State::Inconsistent,
         }
     }
