@@ -96,7 +96,10 @@ fn PORT1(cs: CriticalSection) {
                 if let Ok(mut b) = IN_BUFFER.borrow(&cs).try_borrow_mut() {
                     // Dropping keys when the buffer is full is in line
                     // with what AT/XT hosts do. Saves 2 bytes on panic :)!
-                    let _ = b.put(k);
+                    #[allow(clippy::let_underscore_must_use)]
+                    {
+                        let _ = b.put(k);
+                    }
                 }
             }
 
