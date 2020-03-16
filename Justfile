@@ -1,7 +1,8 @@
 MODE := "release"
 XFLAGS := "--release"
 TARGET := "target/msp430-none-elf/" + MODE + "/at2xt"
-CLIPPY_LINTS := '-W clippy::if_not_else -W clippy::match_same_arms -W clippy::as_conversions'
+CLIPPY_LINTS := '-W clippy::if_not_else -W clippy::match_same_arms -W clippy::as_conversions \\
+  -W clippy::indexing_slicing'
 
 # Build AT2XT.
 timer:

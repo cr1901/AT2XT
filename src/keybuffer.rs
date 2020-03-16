@@ -31,9 +31,13 @@ impl KeycodeBuffer {
             force the array access to be within bounds by ignoring the top bits
             (equivalent to "% power_of_two"). This will optimize out the bounds
             check. */
-            self.contents[usize::from(self.tail % 16)] = in_key;
-            self.tail = self.tail.wrapping_add(1);
-            Ok(())
+            if let Some(buf_ref) = self.contents.get_mut(usize::from(self.tail % 16)) {
+                *buf_ref = in_key;
+                self.tail = self.tail.wrapping_add(1);
+                Ok(())
+            } else {
+                Err(())
+            }
         }
     }
 
@@ -42,9 +46,13 @@ impl KeycodeBuffer {
             None
         } else {
             // Same logic applies as with tail.
-            let out_key: u16 = self.contents[usize::from(self.head % 16)];
-            self.head = self.head.wrapping_add(1);
-            Some(out_key)
+            let out_key = self.contents.get(usize::from(self.head % 16));
+
+            if out_key.is_some() {
+                self.head = self.head.wrapping_add(1);
+            }
+
+            out_key.copied()
         }
     }
 }

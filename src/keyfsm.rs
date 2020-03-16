@@ -12,11 +12,7 @@ mod keymap {
     0x00,0x00,0x00,0x41];
 
     pub fn to_xt(at_in: u8) -> Option<u8> {
-        if at_in < 132 {
-            Some(KEYCODE_LUT[usize::from(at_in)])
-        } else {
-            None
-        }
+        KEYCODE_LUT.get(usize::from(at_in)).copied()
     }
 }
 
