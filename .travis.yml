@@ -7,12 +7,14 @@ install:
   - cargo install --list | grep 'xargo' || cargo install xargo
   - cargo install --list | grep 'just' || cargo install just
   - rustup component list | grep 'rust-src.*installed' || rustup component add rust-src
+  - rustup component add clippy --toolchain=nightly || cargo install --git https://github.com/rust-lang/rust-clippy/ --force clippy
 before_script:
   - wget http://gopher.wdj-consulting.com:70/store/msp430-gcc-6.4.0.32_linux64.tar.bz2 -O /tmp/msp430-gcc.tar.b2
   - tar -xvjf /tmp/msp430-gcc.tar.b2
   - export PATH=$PATH:$PWD/msp430-gcc-6.4.0.32_linux64/bin
 script:
   - just $TARGET
+  - just clippy
 cache:
   cargo: false
 #  directories:
