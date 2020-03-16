@@ -63,9 +63,9 @@ fn PORT1(cs: CriticalSection) {
 
         if let Some(k) = keyout.shift_out() {
             if k {
-                driver::at_data.set(port);
+                driver::AT_DATA.set(port);
             } else {
-                driver::at_data.unset(port);
+                driver::AT_DATA.unset(port);
             }
 
             // Immediately after sending out the Stop Bit, we should release the lines.
@@ -75,7 +75,7 @@ fn PORT1(cs: CriticalSection) {
         } else {
             // TODO: Is it possible to get a spurious clock interrupt and
             // thus skip this logic?
-            if driver::at_data.is_unset(port) {
+            if driver::AT_DATA.is_unset(port) {
                 DEVICE_ACK.store(true);
                 keyout.clear();
             }
@@ -89,7 +89,7 @@ fn PORT1(cs: CriticalSection) {
         // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
         // sync for nested interrupts while not giving up safety?
         // Example: Counter for nest level when updating buffers. If it's ever more than one, panic.
-        if keyin.shift_in(driver::at_data.is_set(port)).is_err() {
+        if keyin.shift_in(driver::AT_DATA.is_set(port)).is_err() {
             driver::at_inhibit(port); // Ask keyboard to not send anything while processing keycode.
 
             if let Some(k) = keyin.take() {
@@ -191,7 +191,7 @@ fn main(cs: CriticalSection) -> ! {
                     mspint::free(|cs| {
                         let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
 
-                        driver::xt_sense.is_unset(port)
+                        driver::XT_SENSE.is_unset(port)
                     })
                 };
 
@@ -242,12 +242,12 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
         };
 
         if bit == 1 {
-            driver::xt_data.set(port);
+            driver::XT_DATA.set(port);
         } else {
-            driver::xt_data.unset(port);
+            driver::XT_DATA.unset(port);
         }
 
-        driver::xt_clk.unset(port);
+        driver::XT_CLK.unset(port);
 
         Ok(())
     })?;
@@ -260,7 +260,7 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
             None => return Err(()),
         };
 
-        driver::xt_clk.set(port);
+        driver::XT_CLK.set(port);
         Ok(())
     })?;
 
@@ -275,7 +275,7 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
                 None => return Err(()),
             };
 
-            let clk_or_data_unset = driver::xt_clk.is_unset(port) || driver::xt_data.is_unset(port);
+            let clk_or_data_unset = driver::XT_CLK.is_unset(port) || driver::XT_DATA.is_unset(port);
 
             if !clk_or_data_unset {
                 driver::xt_out(port);
@@ -319,7 +319,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
                 None => return Err(()),
             };
 
-            let unset = driver::at_clk.is_unset(port);
+            let unset = driver::AT_CLK.is_unset(port);
 
             if !unset {
                 driver::at_inhibit(port);
@@ -359,7 +359,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
             None => return Err(()),
         };
 
-        driver::at_data.unset(port);
+        driver::AT_DATA.unset(port);
         Ok(())
     })?;
 
@@ -371,8 +371,8 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
             None => return Err(()),
         };
 
-        driver::at_clk.set(port);
-        driver::at_clk.mk_in(port);
+        driver::AT_CLK.set(port);
+        driver::AT_CLK.mk_in(port);
         driver::clear_at_clk_int(port);
 
         unsafe {
