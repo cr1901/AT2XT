@@ -1,16 +1,16 @@
 MODE := "release"
 XFLAGS := "--release"
 TARGET := "target/msp430-none-elf/" + MODE + "/at2xt"
-CLIPPY_LINTS := "-W clippy::if_not_else -W clippy::match_same_arms -W clippy::as_conversions"
+CLIPPY_LINTS := '-W clippy::if_not_else -W clippy::match_same_arms -W clippy::as_conversions'
 
-# Build AT2XT using the timer feature.
+# Build AT2XT.
 timer:
     xargo build {{XFLAGS}} --target=msp430-none-elf
     msp430-elf-objdump -Cd {{TARGET}} > {{TARGET}}.lst
     msp430-elf-readelf -s --wide {{TARGET}} > {{TARGET}}.sym
     msp430-elf-size {{TARGET}}
 
-# Build AT2XT using the timer feature and extra artifacts.
+# Build AT2XT and extra artifacts.
 timer-extra:
     xargo rustc {{XFLAGS}} --target=msp430-none-elf -- --emit=obj={{TARGET}}.o
     msp430-elf-objdump -Cd {{TARGET}} > {{TARGET}}.lst
@@ -25,7 +25,12 @@ clippy:
 
 # Run clippy on AT2XT- pedantic mode (many lints won't apply).
 clippy-pedantic:
-  xargo clippy --target=msp430-none-elf -- -W clippy::pedantic -W clippy::as_conversions
+  xargo clippy --target=msp430-none-elf -- -W clippy::pedantic
+
+# Combine with: just clippy-restriction 2>&1 | grep https:// | tr -s " " | sort | uniq?
+# Run clippy on AT2XT- restriction mode (many lints won't apply).
+clippy-restriction:
+  xargo clippy --target=msp430-none-elf -- -W clippy::restriction
 
 # Fix warnings in AT2XT.
 fix:
@@ -35,6 +40,7 @@ fix:
 fix-clippy:
   xargo fix -Z unstable-options --target=msp430-none-elf --clippy
 
+# Format AT2XT source.
 fmt:
   xargo fmt
 
