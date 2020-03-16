@@ -221,6 +221,9 @@ fn main(cs: CriticalSection) -> ! {
 
                     bits_in &= !(0x4000 + 0x0001); // Mask out start/stop bit.
                     bits_in >>= 2; // Remove stop bit and parity bit (FIXME: Check parity).
+
+                    // Truncate is in fact what I want here, so allow lint.
+                    #[allow(clippy::as_conversions)]
                     ProcReply::GrabbedKey((bits_in as u8).swap_bits())
                 }
             }
