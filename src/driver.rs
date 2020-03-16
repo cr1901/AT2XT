@@ -3,14 +3,14 @@ use msp430g2211::generic::{Readable, Reg, Writable, R};
 
 bitflags! {
     pub struct Pins: u8 {
-        const AT_CLK = 0b00000001;
-        const AT_DATA = 0b00010000;
-        const XT_CLK = 0b00000100;
-        const XT_DATA = 0b00001000;
-        const XT_SENSE = 0b00000010;
-        const UNUSED_5 = 0b00100000;
-        const UNUSED_6 = 0b01000000;
-        const UNUSED_7 = 0b10000000;
+        const AT_CLK = 0b0000_0001;
+        const AT_DATA = 0b0001_0000;
+        const XT_CLK = 0b0000_0100;
+        const XT_DATA = 0b0000_1000;
+        const XT_SENSE = 0b0000_0010;
+        const UNUSED_5 = 0b0010_0000;
+        const UNUSED_6 = 0b0100_0000;
+        const UNUSED_7 = 0b1000_0000;
         const AT_MASK = Self::AT_CLK.bits | Self::AT_DATA.bits;
         const XT_MASK = Self::XT_CLK.bits | Self::XT_DATA.bits;
     }
@@ -63,7 +63,8 @@ pub fn mk_in(p: &msp430g2211::PORT_1_2, pins: Pins) {
     clear_port_reg(&p.p1dir, pins)
 }
 
-// No side effects from reading pins- these fcns are safe.
+// The following two functions are only meant to be used to test one pin at a time,
+// although multiple pins should work ("if all are set", "if all are unset").
 pub fn is_set(p: &msp430g2211::PORT_1_2, pins: Pins) -> bool {
     Pins::from(&p.p1in).contains(pins)
 }
@@ -96,21 +97,21 @@ pub fn clear_at_clk_int(p: &msp430g2211::PORT_1_2) {
 pub fn at_idle(p: &msp430g2211::PORT_1_2) {
     set(p, Pins::AT_CLK);
     set(p, Pins::AT_DATA);
-    clear_port_reg(&p.p1dir, Pins::AT_CLK | Pins::AT_DATA);
+    clear_port_reg(&p.p1dir, Pins::AT_MASK);
 }
 
 pub fn at_inhibit(p: &msp430g2211::PORT_1_2) {
     unset(p, Pins::AT_CLK);
     set(p, Pins::AT_DATA);
-    set_port_reg(&p.p1dir, Pins::AT_CLK | Pins::AT_DATA);
+    set_port_reg(&p.p1dir, Pins::AT_MASK);
 }
 
 pub fn xt_out(p: &msp430g2211::PORT_1_2) {
-    set_port_reg(&p.p1out, Pins::XT_CLK | Pins::XT_DATA);
-    set_port_reg(&p.p1dir, Pins::XT_CLK | Pins::XT_DATA);
+    set_port_reg(&p.p1out, Pins::XT_MASK);
+    set_port_reg(&p.p1dir, Pins::XT_MASK);
 }
 
 pub fn xt_in(p: &msp430g2211::PORT_1_2) {
     set_port_reg(&p.p1out, Pins::XT_DATA);
-    clear_port_reg(&p.p1dir, Pins::XT_CLK | Pins::XT_DATA);
+    clear_port_reg(&p.p1dir, Pins::XT_MASK);
 }
