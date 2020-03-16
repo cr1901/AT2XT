@@ -82,14 +82,17 @@ impl KeyIn {
 
     pub fn shift_in(&mut self, bit: bool) -> Result<(), ()> {
         // TODO: A nonzero start value (when self.pos == 0) is a runtime invariant violation.
-        let cast_bit: u16 = if bit { 1 } else { 0 };
-        self.contents = (self.contents << 1) | cast_bit;
-        self.pos += 1;
-
         if self.is_full() {
             Err(())
         } else {
-            Ok(())
+            self.contents = (self.contents << 1) | u16::from(bit);
+            self.pos += 1;
+
+            if self.is_full() {
+                Err(())
+            } else {
+                Ok(())
+            }
         }
     }
 
