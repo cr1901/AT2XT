@@ -16,39 +16,30 @@ bitflags! {
     }
 }
 
-impl<'a, REG> From<&'a Reg<u8, REG>> for Pins
-where
-    Reg<u8, REG>: Readable,
-{
-    fn from(reg: &'a Reg<u8, REG>) -> Self {
-        Pins::from_bits_truncate(reg.read().bits())
-    }
-}
-
-impl<T> From<R<u8, T>> for Pins {
-    fn from(r: R<u8, T>) -> Self {
+impl<T> From<&R<u8, T>> for Pins {
+    fn from(r: &R<u8, T>) -> Self {
         Pins::from_bits_truncate(r.bits())
     }
 }
 
-impl<'a, T> From<&'a R<u8, T>> for Pins {
-    fn from(r: &'a R<u8, T>) -> Self {
-        Pins::from_bits_truncate(r.bits())
-    }
-}
-
-fn set_port_reg<'a, REG>(reg: &'a Reg<u8, REG>, pins: Pins)
+fn set_port_reg<REG>(reg: &Reg<u8, REG>, pins: Pins)
 where
     Reg<u8, REG>: Readable + Writable,
 {
-    reg.modify(|r, w| unsafe { w.bits((Pins::from(r) | pins).bits()) });
+    reg.modify(|r, w| {
+        let p = Pins::from(r) | pins;
+        unsafe { w.bits(p.bits()) }
+    });
 }
 
-fn clear_port_reg<'a, REG>(reg: &'a Reg<u8, REG>, pins: Pins)
+fn clear_port_reg<REG>(reg: &Reg<u8, REG>, pins: Pins)
 where
     Reg<u8, REG>: Readable + Writable,
 {
-    reg.modify(|r, w| unsafe { w.bits((Pins::from(r) & !pins).bits()) });
+    reg.modify(|r, w| {
+        let p = Pins::from(r) & !pins;
+        unsafe { w.bits(p.bits()) }
+    });
 }
 
 pub fn set(p: &msp430g2211::PORT_1_2, pins: Pins) {
@@ -66,11 +57,11 @@ pub fn mk_in(p: &msp430g2211::PORT_1_2, pins: Pins) {
 // The following two functions are only meant to be used to test one pin at a time,
 // although multiple pins should work ("if all are set", "if all are unset").
 pub fn is_set(p: &msp430g2211::PORT_1_2, pins: Pins) -> bool {
-    Pins::from(&p.p1in).contains(pins)
+    Pins::from(&p.p1in.read()).contains(pins)
 }
 
 pub fn is_unset(p: &msp430g2211::PORT_1_2, pins: Pins) -> bool {
-    !Pins::from(&p.p1in).intersects(pins)
+    !Pins::from(&p.p1in.read()).intersects(pins)
 }
 
 pub fn idle(p: &msp430g2211::PORT_1_2) {

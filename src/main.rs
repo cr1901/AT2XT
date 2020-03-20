@@ -276,7 +276,8 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
                 None => return Err(()),
             };
 
-            let clk_or_data_unset = driver::is_unset(port, Pins::XT_CLK) || driver::is_unset(port, Pins::XT_DATA);
+            let clk_or_data_unset =
+                driver::is_unset(port, Pins::XT_CLK) || driver::is_unset(port, Pins::XT_DATA);
 
             if !clk_or_data_unset {
                 driver::xt_out(port);
