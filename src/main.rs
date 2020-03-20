@@ -25,10 +25,10 @@ use driver::Pins;
 mod atkey;
 use atkey::LedMask;
 
-macro_rules! us_to_ticks {
+macro_rules! delay_us {
     ($u:expr) => {
         // Timer is 100000 Hz, thus granularity of 10us.
-        ($u / 10) + 1
+        delay(($u / 10) + 1)
     };
 }
 
@@ -256,7 +256,7 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
         Ok(())
     })?;
 
-    delay(us_to_ticks!(55))?;
+    delay_us!(55)?;
 
     mspint::free(|cs| {
         let port = match PERIPHERALS.borrow(cs).get() {
@@ -356,7 +356,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     I/O read. Can it be done without overhead of CriticalSection? */
     while wait_for_at_keyboard()? {}
 
-    delay(us_to_ticks!(100))?;
+    delay_us!(100)?;
 
     mspint::free(|cs| {
         let port = match PERIPHERALS.borrow(cs).get() {
@@ -368,7 +368,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
         Ok(())
     })?;
 
-    delay(us_to_ticks!(33))?;
+    delay_us!(33)?;
 
     mspint::free(|cs| {
         let port = match PERIPHERALS.borrow(cs).get() {
@@ -397,7 +397,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
 
 fn toggle_leds(mask: LedMask) -> Result<(), ()> {
     send_byte_to_at_keyboard(0xED)?;
-    delay(us_to_ticks!(3000))?;
+    delay_us!(3000)?;
     send_byte_to_at_keyboard(mask.bits())?;
     Ok(())
 }
