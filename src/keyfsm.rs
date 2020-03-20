@@ -1,3 +1,5 @@
+use crate::atkey::{LedMask};
+
 mod keymap {
     static KEYCODE_LUT : [u8; 132] =
     // 0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
@@ -19,7 +21,7 @@ mod keymap {
 pub enum Cmd {
     WaitForKey,
     ClearBuffer, // If Reset Occurs.
-    ToggleLed(u8),
+    ToggleLed(LedMask),
     SendXTKey(u8),
 }
 
@@ -29,7 +31,7 @@ pub enum ProcReply {
     GrabbedKey(u8),
     SentKey(u8),
     ClearedBuffer,
-    LedToggled(u8),
+    LedToggled(LedMask),
     KeyboardReset,
     //SentEcho,
 }
@@ -55,7 +57,7 @@ enum State {
 pub struct Fsm {
     curr_state: State,
     expecting_pause: bool,
-    led_mask: u8,
+    led_mask: LedMask,
 }
 
 impl Fsm {
@@ -63,7 +65,7 @@ impl Fsm {
         Fsm {
             curr_state: State::NotInKey,
             expecting_pause: false,
-            led_mask: 0,
+            led_mask: Default::default(),
         }
     }
 
@@ -83,9 +85,9 @@ impl Fsm {
             State::UnmodifiedKey(u) => Ok(Cmd::SendXTKey(u)),
             State::ToggleLedFirst(l) => {
                 match l {
-                    0x7e => Ok(Cmd::ToggleLed(self.led_mask ^ 0x01)), // Scroll
-                    0x77 => Ok(Cmd::ToggleLed(self.led_mask ^ 0x02)), // Num
-                    0x58 => Ok(Cmd::ToggleLed(self.led_mask ^ 0x04)), // Caps
+                    0x7e => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::SCROLL)), // Scroll
+                    0x77 => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::NUM)), // Num
+                    0x58 => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::CAPS)), // Caps
                     _ => Err(()),
                 }
             }

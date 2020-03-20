@@ -22,6 +22,9 @@ use keybuffer::{KeyIn, KeyOut, KeycodeBuffer};
 mod driver;
 use driver::Pins;
 
+mod atkey;
+use atkey::LedMask;
+
 macro_rules! us_to_ticks {
     ($u:expr) => {
         // Timer is 100000 Hz, thus granularity of 10us.
@@ -392,10 +395,10 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     Ok(())
 }
 
-fn toggle_leds(mask: u8) -> Result<(), ()> {
+fn toggle_leds(mask: LedMask) -> Result<(), ()> {
     send_byte_to_at_keyboard(0xED)?;
     delay(us_to_ticks!(3000))?;
-    send_byte_to_at_keyboard(mask)?;
+    send_byte_to_at_keyboard(mask.bits())?;
     Ok(())
 }
 
