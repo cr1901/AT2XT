@@ -1,4 +1,4 @@
-use crate::atkey::{LedMask};
+use bitflags::bitflags;
 
 mod keymap {
     static KEYCODE_LUT : [u8; 132] =
@@ -23,6 +23,26 @@ pub enum Cmd {
     ClearBuffer, // If Reset Occurs.
     ToggleLed(LedMask),
     SendXTKey(u8),
+}
+
+impl Cmd {
+    // XT command
+    pub const SELF_TEST_PASSED: u8 = 0xaa;
+
+    // AT commands
+    pub const SET_LEDS: u8 = 0xed;
+    #[allow(dead_code)]
+    pub const ECHO: u8 = 0xee;
+    pub const RESET: u8 = 0xff;
+}
+
+bitflags! {
+    #[derive(Default)]
+    pub struct LedMask: u8 {
+        const SCROLL = 0b0000_0001;
+        const NUM = 0b0000_0010;
+        const CAPS = 0b0000_0100;
+    }
 }
 
 pub enum ProcReply {
@@ -61,6 +81,25 @@ pub struct Fsm {
 }
 
 impl Fsm {
+    #[allow(dead_code)]
+    const ERROR1: u8 = 0x00;
+    const CAPS: u8 = 0x58;
+    const NUM: u8 = 0x77;
+    const SCROLL: u8 = 0x7e;
+    const SELF_TEST_PASSED: u8 = 0xaa;
+    const PREFIX: u8 = 0xe0;
+    const PREFIX_PAUSE: u8 = 0xe1;
+    const ECHO: u8 = 0xee;
+    const BREAK: u8 = 0xf0;
+    const ACK: u8 = 0xfa;
+    #[allow(dead_code)]
+    const SELF_TEST_FAILED1: u8 = 0xfc;
+    #[allow(dead_code)]
+    const SELF_TEST_FAILED2: u8 = 0xfd;
+    const NAK: u8 = 0xfe;
+    #[allow(dead_code)]
+    const ERROR2: u8 = 0xff;
+
     pub fn start() -> Fsm {
         Fsm {
             curr_state: State::NotInKey,
@@ -83,14 +122,12 @@ impl Fsm {
                 None => Err(()),
             },
             State::UnmodifiedKey(u) => Ok(Cmd::SendXTKey(u)),
-            State::ToggleLedFirst(l) => {
-                match l {
-                    0x7e => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::SCROLL)), // Scroll
-                    0x77 => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::NUM)), // Num
-                    0x58 => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::CAPS)), // Caps
-                    _ => Err(()),
-                }
-            }
+            State::ToggleLedFirst(l) => match l {
+                Self::SCROLL => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::SCROLL)),
+                Self::NUM => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::NUM)),
+                Self::CAPS => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::CAPS)),
+                _ => Err(()),
+            },
             State::ExpectingBufferClear => Ok(Cmd::ClearBuffer),
             State::Inconsistent => Err(()),
         };
@@ -110,10 +147,10 @@ impl Fsm {
             (&State::NotInKey, &ProcReply::GrabbedKey(k)) => {
                 match k {
                     // TODO: 0xfa, 0xfe, and 0xee should never be sent unprompted.
-                    0xaa | 0xfa | 0xfe | 0xee => State::NotInKey,
-                    0xf0 => State::PossibleBreakCode,
-                    0xe0 => State::UnmodifiedKey(k),
-                    0xe1 => {
+                    Self::SELF_TEST_PASSED | Self::ACK | Self::NAK | Self::ECHO => State::NotInKey,
+                    Self::BREAK => State::PossibleBreakCode,
+                    Self::PREFIX => State::UnmodifiedKey(k),
+                    Self::PREFIX_PAUSE => {
                         self.expecting_pause = true;
                         State::UnmodifiedKey(k)
                     }
@@ -124,8 +161,8 @@ impl Fsm {
             (&State::PossibleBreakCode, &ProcReply::GrabbedKey(k)) => {
                 match k {
                     // LEDs => State::ToggleLed()
-                    0x7e | 0x58 => State::ToggleLedFirst(k),
-                    0x77 => {
+                    Self::SCROLL | Self::CAPS => State::ToggleLedFirst(k),
+                    Self::NUM => {
                         if self.expecting_pause {
                             self.expecting_pause = false;
                             State::KnownBreakCode(k)

@@ -14,16 +14,13 @@ use msp430g2211::{interrupt, Peripherals};
 use once_cell::unsync::OnceCell;
 
 mod keyfsm;
-use keyfsm::{Cmd, Fsm, ProcReply};
+use keyfsm::{Cmd, Fsm, ProcReply, LedMask};
 
 mod keybuffer;
 use keybuffer::{KeyIn, KeyOut, KeycodeBuffer};
 
 mod driver;
 use driver::Pins;
-
-mod atkey;
-use atkey::LedMask;
 
 macro_rules! delay_us {
     ($u:expr) => {
@@ -155,7 +152,7 @@ fn init(cs: CriticalSection) {
 fn main(cs: CriticalSection) -> ! {
     init(cs);
 
-    send_byte_to_at_keyboard(0xFF).unwrap();
+    send_byte_to_at_keyboard(Cmd::RESET).unwrap();
 
     let mut loop_cmd: Cmd;
     let mut loop_reply: ProcReply = ProcReply::init();
@@ -207,8 +204,8 @@ fn main(cs: CriticalSection) -> ! {
                 }) {
                     // If host computer wants to reset
                     if reset_requested() {
-                        send_byte_to_at_keyboard(0xFF).unwrap();
-                        send_byte_to_pc(0xAA).unwrap();
+                        send_byte_to_at_keyboard(Cmd::RESET).unwrap();
+                        send_byte_to_pc(Cmd::SELF_TEST_PASSED).unwrap();
                         xt_reset = true;
                         break;
                     }
@@ -396,7 +393,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
 }
 
 fn toggle_leds(mask: LedMask) -> Result<(), ()> {
-    send_byte_to_at_keyboard(0xED)?;
+    send_byte_to_at_keyboard(Cmd::SET_LEDS)?;
     delay_us!(3000)?;
     send_byte_to_at_keyboard(mask.bits())?;
     Ok(())
