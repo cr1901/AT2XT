@@ -34,6 +34,12 @@ struct At2XtPeripherals {
     timer: msp430g2211::TIMER_A2,
 }
 
+enum IdleCondition {
+    NewKey(u16),
+    ResetRequested,
+    KeepLooping
+}
+
 static TIMEOUT: AtomicBool = AtomicBool::new(false);
 static HOST_MODE: AtomicBool = AtomicBool::new(false);
 static DEVICE_ACK: AtomicBool = AtomicBool::new(false);
@@ -188,7 +194,7 @@ fn main(cs: CriticalSection) -> ! {
                 // The micro spends the majority of its life idle. It is possible for the host PC and
                 // the keyboard to send data to the micro at the same time. To keep control flow simple,
                 // the micro will only respond to host PC acknowledge requests if its idle.
-                fn check_break_condition() -> Result<Result<u16, ()>, ()> {
+                fn check_break_condition() -> IdleCondition {
                     fn reset_requested(cs: &CriticalSection) -> bool {
                         let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
 
@@ -204,28 +210,28 @@ fn main(cs: CriticalSection) -> ! {
 
                     mspint::free(|cs| {
                         if let Some(cb) = check_buffer(cs) {
-                            Ok(Ok(cb))
+                            IdleCondition::NewKey(cb)
+                        } else if reset_requested(cs) {
+                            IdleCondition::ResetRequested
                         } else {
-                            if reset_requested(cs) {
-                                Ok(Err(()))
-                            } else {
-                                Err(())
-                            }
+                            IdleCondition::KeepLooping
                         }
                     })
                 }
 
-                let idle_res : Result<u16, ()> = loop {
-                    if let Ok(i) = check_break_condition() {
-                        if let Err(()) = i {
+                let idle_res : IdleCondition = loop {
+                    match check_break_condition() {
+                        x @ IdleCondition::NewKey(_) => break x,
+                        y @ IdleCondition::ResetRequested => {
                             send_byte_to_at_keyboard(Cmd::RESET).unwrap();
                             send_byte_to_pc(Cmd::SELF_TEST_PASSED).unwrap();
+                            break y
                         }
-                        break i
+                        IdleCondition::KeepLooping => { }
                     }
                 };
 
-                if let Ok(mut bits_in) = idle_res {
+                if let IdleCondition::NewKey(mut bits_in) = idle_res {
                     bits_in &= !(0x4000 + 0x0001); // Mask out start/stop bit.
                     bits_in >>= 2; // Remove stop bit and parity bit (FIXME: Check parity).
 
