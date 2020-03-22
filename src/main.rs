@@ -196,39 +196,37 @@ fn main(cs: CriticalSection) -> ! {
                     })
                 };
 
-                let mut xt_reset: bool = false;
-
-                while mspint::free(|cs| match IN_BUFFER.borrow(cs).try_borrow_mut() {
-                    Ok(b) => b.is_empty(),
-                    Err(_) => true,
-                }) {
-                    // If host computer wants to reset
-                    if reset_requested() {
-                        send_byte_to_at_keyboard(Cmd::RESET).unwrap();
-                        send_byte_to_pc(Cmd::SELF_TEST_PASSED).unwrap();
-                        xt_reset = true;
-                        break;
-                    }
+                fn check_buffer() -> Option<u16> {
+                    mspint::free(|cs| match IN_BUFFER.borrow(cs).try_borrow_mut() {
+                        Ok(mut b) => b.take(),
+                        Err(_) => None,
+                    })
                 }
 
-                if xt_reset {
-                    ProcReply::KeyboardReset
-                } else {
-                    let mut bits_in =
-                        mspint::free(|cs| match IN_BUFFER.borrow(cs).try_borrow_mut() {
-                            Ok(mut b) => match b.take() {
-                                Some(k) => k,
-                                None => 0,
-                            },
-                            Err(_) => 0,
-                        });
+                let idle_res : Result<u16, ()> = loop {
+                    match check_buffer() {
+                        Some(x) => {
+                            break Ok(x)
+                        },
+                        None => {
+                            if reset_requested() {
+                                send_byte_to_at_keyboard(Cmd::RESET).unwrap();
+                                send_byte_to_pc(Cmd::SELF_TEST_PASSED).unwrap();
+                                break Err(());
+                            }
+                        }
+                    }
+                };
 
+                if let Ok(mut bits_in) = idle_res {
                     bits_in &= !(0x4000 + 0x0001); // Mask out start/stop bit.
                     bits_in >>= 2; // Remove stop bit and parity bit (FIXME: Check parity).
 
                     // Truncate is in fact what I want here, so allow lint.
                     #[allow(clippy::as_conversions)]
                     ProcReply::GrabbedKey((bits_in as u8).swap_bits())
+                } else {
+                    ProcReply::KeyboardReset
                 }
             }
         }
@@ -314,21 +312,19 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
 }
 
 fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
-    fn wait_for_at_keyboard() -> Result<bool, ()> {
-        mspint::free(|cs| {
-            let port = match PERIPHERALS.borrow(cs).get() {
-                Some(p) => &p.port,
-                None => return Err(()),
-            };
+    fn wait_for_at_keyboard(cs: &CriticalSection) -> Result<bool, ()> {
+        let port = match PERIPHERALS.borrow(cs).get() {
+            Some(p) => &p.port,
+            None => return Err(()),
+        };
 
-            let unset = driver::is_unset(port, Pins::AT_CLK);
+        let unset = driver::is_unset(port, Pins::AT_CLK);
 
-            if !unset {
-                driver::at_inhibit(port);
-            }
+        if !unset {
+            driver::at_inhibit(port);
+        }
 
-            Ok(unset)
-        })
+        Ok(unset)
     }
 
     mspint::free(|cs| {
@@ -346,12 +342,12 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
         // context to touch this variable.
         KEY_OUT.borrow(cs).set(key_out);
         driver::disable_at_clk_int(port);
+
+        /* If/when timer int is enabled, this loop really needs to allow preemption during
+        I/O read. Can it be done without overhead of CriticalSection? */
+        while wait_for_at_keyboard(cs)? {}
         Ok(())
     })?;
-
-    /* If/when timer int is enabled, this loop really needs to allow preemption during
-    I/O read. Can it be done without overhead of CriticalSection? */
-    while wait_for_at_keyboard()? {}
 
     delay_us!(100)?;
 
