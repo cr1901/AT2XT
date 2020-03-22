@@ -188,33 +188,40 @@ fn main(cs: CriticalSection) -> ! {
                 // The micro spends the majority of its life idle. It is possible for the host PC and
                 // the keyboard to send data to the micro at the same time. To keep control flow simple,
                 // the micro will only respond to host PC acknowledge requests if its idle.
-                fn reset_requested() -> bool {
-                    mspint::free(|cs| {
+                fn check_break_condition() -> Result<Result<u16, ()>, ()> {
+                    fn reset_requested(cs: &CriticalSection) -> bool {
                         let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
 
                         driver::is_unset(port, Pins::XT_SENSE)
-                    })
-                };
+                    };
 
-                fn check_buffer() -> Option<u16> {
-                    mspint::free(|cs| match IN_BUFFER.borrow(cs).try_borrow_mut() {
-                        Ok(mut b) => b.take(),
-                        Err(_) => None,
+                    fn check_buffer(cs: &CriticalSection) -> Option<u16> {
+                        match IN_BUFFER.borrow(cs).try_borrow_mut() {
+                            Ok(mut b) => b.take(),
+                            Err(_) => None,
+                        }
+                    }
+
+                    mspint::free(|cs| {
+                        if let Some(cb) = check_buffer(cs) {
+                            Ok(Ok(cb))
+                        } else {
+                            if reset_requested(cs) {
+                                Ok(Err(()))
+                            } else {
+                                Err(())
+                            }
+                        }
                     })
                 }
 
                 let idle_res : Result<u16, ()> = loop {
-                    match check_buffer() {
-                        Some(x) => {
-                            break Ok(x)
-                        },
-                        None => {
-                            if reset_requested() {
-                                send_byte_to_at_keyboard(Cmd::RESET).unwrap();
-                                send_byte_to_pc(Cmd::SELF_TEST_PASSED).unwrap();
-                                break Err(());
-                            }
+                    if let Ok(i) = check_break_condition() {
+                        if let Err(()) = i {
+                            send_byte_to_at_keyboard(Cmd::RESET).unwrap();
+                            send_byte_to_pc(Cmd::SELF_TEST_PASSED).unwrap();
                         }
+                        break i
                     }
                 };
 
