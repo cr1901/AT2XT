@@ -314,6 +314,10 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
 }
 
 fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
+    // TODO: What does the AT keyboard protocol say about retrying xfers
+    // when inhibiting communication? Does the keyboard retry from the beginning
+    // or from the interrupted bit? Right now, we don't flush KeyIn, so
+    // we do it from the interrupted bit. This seems to work fine.
     fn wait_for_at_keyboard() -> Result<bool, ()> {
         mspint::free(|cs| {
             let port = match PERIPHERALS.borrow(cs).get() {

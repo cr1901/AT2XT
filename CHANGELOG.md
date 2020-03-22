@@ -11,6 +11,46 @@ as optimizations, bugs, and code cleanup are pooled into minor releases.
 # AT2XT Firmware
 ## [Unreleased]
 
+## [4.0.0]
+Version [4.0.0] is a refactor. The firmware fundamentally operates the same
+way as version [3.0.0]. In fact, based on a binary comparison, the firmware
+size and contents barely changed.
+
+### Added
+- [clippy](https://github.com/rust-lang/rust-clippy) and `xargo fix` lint
+  support.
+- [rustfmt](https://github.com/rust-lang/rustfmt) support.
+- Various `Justfile` targets to support the above.
+
+### Fixed
+- Warnings fixed via `just fix` and `just fix-clippy`.
+- `KeyIn` was missing a check to prevent shifting in data to a full buffer.
+  Because of how `KeyIn` is used, this check is _probably_ not necessary for
+  AT2XT, but the check is needed if I were to spin out the `keybuffer` module
+  as its own crate. This check pessimizes AT2XT by 10 bytes.
+- Some `unwrap`s that are no longer misoptimized were added back in.
+- Issue #3 is finally fixed by 7354cc1 thanks to LLVM improvments (the commit
+  message points to wrong issue)!
+
+### Changed
+- Various refactors, including:
+  - `Pins` struct and `led_mask` `u8` replaced with dedicated types using
+    the [bitflags](https://github.com/bitflags/bitflags) crate.
+  - `set/clear_bits_with_mask` macros replaced with generic functions.
+  - Most `u8` literals are referenced using associated constants.
+  - All array indexing operations were successfully removed.
+  - Most as-conversions replaced with `From` impl.
+  - Anything else suggested by clippy. Some of these optimizations saved space,
+    such as rearranging match arms.
+
+### Removed
+- Software-based delay loop support was removed, as there aren't enough
+  space optimizations left in AT2XT compared to justify the configuration
+  boilerplate. `just timer` is now the default build configuration.
+- `feature(asm)` is no longer necessary due to the above.
+- After Issue #3 was resolved, the `driver` module refactor from 7aaffcc
+  removed the affected code.
+
 ## [3.0.0]
 Version [3.0.0] is the first version of AT2XT using the newer `take`-based
 [singleton API](https://blog.japaric.io/brave-new-io/).
@@ -24,8 +64,8 @@ Version [3.0.0] is the first version of AT2XT using the newer `take`-based
   entries if the queue is full.
 
 ### Changed
-- Remove the ancient RTFM version for now and use `CriticalSection`s/`msp430::interrupt::free`
-  as appropriate to access I/O.
+- Use `CriticalSection`s/`msp430::interrupt::free` as appropriate to access
+  I/O.
 - Use [msp430-rt] version `0.2.4` to get access to `CriticalSection`
   optimizations- saving approximately 60 bytes.
 - Various optimizations to further save space (~60 more bytes), including:
@@ -35,6 +75,15 @@ Version [3.0.0] is the first version of AT2XT using the newer `take`-based
   - Combined `CriticalSection`s when exiting `while` loops.
 - Most functions now return `Result<(),()>`, which offsets the size gains
   pretty much exactly.
+
+### Removed
+- Remove the ancient RTFM version for now, pending a rewrite of [msp430-rtfm]
+  to target a newer API [version](https://rtfm.rs/0.5/book/en/) of
+  [Real Time For the Masses](http://www.rtfm-lang.org).
+
+### Deprecated
+- The software-based delay loop was removed in the following commit.
+  `just timer` is now the default target.
 
 ## [2.3.0]
 Version [2.3.0] is a stopgap release meant to provide a clean break between
@@ -390,7 +439,8 @@ should not be manufactured. A new design will follow shortly.
 [panic_msp430]: https://github.com/YuhanLiin/panic-msp430
 [compiler-builtins]: https://github.com/rust-lang-nursery/compiler-builtins
 
-[Unreleased]: https://github.com/cr1901/AT2XT/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/cr1901/AT2XT/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/cr1901/AT2XT/compare/v3.0.0...v4.0.0
 [3.0.0]: https://github.com/cr1901/AT2XT/compare/v2.3.0...v3.0.0
 [2.3.0]: https://github.com/cr1901/AT2XT/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/cr1901/AT2XT/compare/v2.1.0...v2.2.0
