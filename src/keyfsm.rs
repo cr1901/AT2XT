@@ -149,18 +149,16 @@ impl Fsm {
                     // TODO: 0xfa, 0xfe, and 0xee should never be sent unprompted.
                     Self::SELF_TEST_PASSED | Self::ACK | Self::NAK | Self::ECHO => State::NotInKey,
                     Self::BREAK => State::PossibleBreakCode,
-                    Self::PREFIX => State::UnmodifiedKey(k),
-                    Self::PREFIX_PAUSE => {
-                        self.expecting_pause = true;
+                    Self::PREFIX | Self::PREFIX_PAUSE => {
+                        self.expecting_pause = (k == Self::PREFIX_PAUSE);
                         State::UnmodifiedKey(k)
-                    }
+                    },
 
                     _ => State::SimpleKey(k),
                 }
             }
             (&State::PossibleBreakCode, &ProcReply::GrabbedKey(k)) => {
                 match k {
-                    // LEDs => State::ToggleLed()
                     Self::SCROLL | Self::CAPS => State::ToggleLedFirst(k),
                     Self::NUM => {
                         if self.expecting_pause {
