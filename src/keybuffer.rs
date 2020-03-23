@@ -143,22 +143,15 @@ impl KeyOut {
     }
 
     pub fn put(&mut self, byte: u8) -> Result<(), ()> {
-        if self.is_empty() {
-            let mut sout = byte;
-            let mut num_ones: u8 = 0;
-
-            for _ in 0..8 {
-                num_ones += sout & 0x01;
-                sout <<= 1;
-            }
-
-            let stop_bit: u16 = 1 << 9;
-            let parity_bit: u16 = if num_ones % 2 == 0 { 1 << 8 } else { 0 };
-            self.contents = u16::from(byte) | parity_bit | stop_bit;
-            self.pos = 0;
-            Ok(())
-        } else {
-            Err(())
+        if !self.is_empty() {
+            return Err(());
         }
+
+        let num_ones = byte.count_ones();
+        let stop_bit: u16 = 1 << 9;
+        let parity_bit: u16 = if num_ones % 2 == 0 { 1 << 8 } else { 0 };
+        self.contents = u16::from(byte) | parity_bit | stop_bit;
+        self.pos = 0;
+        Ok(())
     }
 }
