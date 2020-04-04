@@ -16,30 +16,37 @@ impl At2XtPeripherals {
         PERIPHERALS.borrow(cs).set(self).map_err(|_e| {})
     }
 
-    fn periph_ref(cs: &CriticalSection) -> Option<&Self> {
-        PERIPHERALS.borrow(cs).get()
-    }
-
-    pub fn periph_ref_map<T, F>(cs: &CriticalSection, f: F) -> Option<&T>
+    pub fn periph_ref_map<'a, T, F>(cs: &'a CriticalSection, f: F) -> Option<&'a T>
     where
-        T: private::Sealed,
-        F: FnOnce(&Self) -> &T,
+        &'a T: private::Sealed,
+        F: FnOnce(&'a Self) -> &'a T,
     {
-        Self::periph_ref(cs).map(f)
+        PERIPHERALS.borrow(cs).get().map(f)
     }
 
-    pub fn port_ref(cs: &CriticalSection) -> Result<&msp430g2211::PORT_1_2, ()> {
-        Self::periph_ref_map(cs, |p| &p.port).ok_or(())
-    }
-
-    pub fn timer_ref(cs: &CriticalSection) -> Result<&msp430g2211::TIMER_A2, ()> {
-        Self::periph_ref_map(cs, |p| &p.timer).ok_or(())
+    pub fn periph_ref<'a, T>(cs: &'a CriticalSection) -> Result<&'a T, ()>
+    where
+        &'a T: private::Sealed + From<&'a super::At2XtPeripherals>
+    {
+        Self::periph_ref_map(cs, |p| From::from(p)).ok_or(())
     }
 }
 
 mod private {
     pub trait Sealed {}
 
-    impl Sealed for msp430g2211::PORT_1_2 {}
-    impl Sealed for msp430g2211::TIMER_A2 {}
+    impl Sealed for &msp430g2211::PORT_1_2 {}
+    impl Sealed for &msp430g2211::TIMER_A2 {}
+
+    impl<'a> From<&'a super::At2XtPeripherals> for &'a msp430g2211::PORT_1_2 {
+        fn from(p: &'a super::At2XtPeripherals) -> Self {
+            &p.port
+        }
+    }
+
+    impl<'a> From<&'a super::At2XtPeripherals> for &'a msp430g2211::TIMER_A2 {
+        fn from(p: &'a super::At2XtPeripherals) -> Self {
+            &p.timer
+        }
+    }
 }

@@ -235,7 +235,7 @@ fn main(cs: CriticalSection) -> ! {
 
 pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
     mspint::free(|cs| {
-        let port = At2XtPeripherals::port_ref(&cs)?;
+        let port = At2XtPeripherals::periph_ref(&cs)?;
 
         if bit == 1 {
             driver::set(port, Pins::XT_DATA);
@@ -251,7 +251,7 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
     delay_us!(55)?;
 
     mspint::free(|cs| {
-        let port = At2XtPeripherals::port_ref(&cs)?;
+        let port = At2XtPeripherals::periph_ref(&cs)?;
 
         driver::set(port, Pins::XT_CLK);
         Ok(())
@@ -263,7 +263,7 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
 pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
     fn wait_for_host() -> Result<bool, ()> {
         mspint::free(|cs| {
-            let port = At2XtPeripherals::port_ref(&cs)?;
+            let port = At2XtPeripherals::periph_ref(&cs)?;
 
             let clk_or_data_unset =
                 driver::is_unset(port, Pins::XT_CLK) || driver::is_unset(port, Pins::XT_DATA);
@@ -290,7 +290,7 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
     }
 
     mspint::free(|cs| {
-        let port = At2XtPeripherals::port_ref(&cs)?;
+        let port = At2XtPeripherals::periph_ref(&cs)?;
 
         driver::xt_in(port);
         Ok(())
@@ -306,7 +306,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     // we do it from the interrupted bit. This seems to work fine.
     fn wait_for_at_keyboard() -> Result<bool, ()> {
         mspint::free(|cs| {
-            let port = At2XtPeripherals::port_ref(&cs)?;
+            let port = At2XtPeripherals::periph_ref(&cs)?;
 
             let unset = driver::is_unset(port, Pins::AT_CLK);
 
@@ -319,7 +319,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     }
 
     mspint::free(|cs| {
-        let port = At2XtPeripherals::port_ref(&cs)?;
+        let port = At2XtPeripherals::periph_ref(&cs)?;
 
         let mut key_out = KEY_OUT.borrow(cs).get();
 
@@ -340,7 +340,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     delay_us!(100)?;
 
     mspint::free(|cs| {
-        let port = At2XtPeripherals::port_ref(&cs)?;
+        let port = At2XtPeripherals::periph_ref(&cs)?;
 
         driver::unset(port, Pins::AT_DATA);
         Ok(())
@@ -349,7 +349,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     delay_us!(33)?;
 
     mspint::free(|cs| {
-        let port = At2XtPeripherals::port_ref(&cs)?;
+        let port = At2XtPeripherals::periph_ref(&cs)?;
 
         driver::set(port, Pins::AT_CLK);
         driver::mk_in(port, Pins::AT_CLK);
@@ -386,7 +386,7 @@ fn delay(time: u16) -> Result<(), ()> {
 
 fn start_timer(time: u16) -> Result<(), ()> {
     mspint::free(|cs| {
-        let timer = At2XtPeripherals::timer_ref(&cs)?;
+        let timer : &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref(&cs)?;
 
         TIMEOUT.store(false);
         timer.taccr0.write(|w| unsafe { w.bits(time) });
