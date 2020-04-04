@@ -16,20 +16,12 @@ impl At2XtPeripherals {
         PERIPHERALS.borrow(cs).set(self).map_err(|_e| {})
     }
 
-    pub fn periph_ref_map<'a, T>(cs: &'a CriticalSection) -> Option<&'a T>
+    pub fn periph_ref<'a, T>(cs: &'a CriticalSection) -> Option<&'a T>
     where
         &'a T: private::Sealed,
         Self: AsRef<T>,
     {
         PERIPHERALS.borrow(cs).get().map(|p| p.as_ref())
-    }
-
-    pub fn periph_ref<'a, T>(cs: &'a CriticalSection) -> Result<&'a T, ()>
-    where
-        &'a T: private::Sealed,
-        Self: AsRef<T>,
-    {
-        Self::periph_ref_map(cs).ok_or(())
     }
 }
 
