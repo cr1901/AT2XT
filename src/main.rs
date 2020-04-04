@@ -45,9 +45,9 @@ fn TIMERA0(cs: CriticalSection) {
 
     // Use unwrap b/c within interrupt handlers, if we can't get access to
     // peripherals right away, there's no point in continuing.
-    let t = &At2XtPeripherals::periph_ref_map(&cs, |p| &p.timer).unwrap();
+    let timer: &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref_map(&cs).unwrap();
     // Writing 0x0000 stops Timer in MC1.
-    t.taccr0.write(|w| unsafe { w.bits(0x0000) });
+    timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
     // CCIFG will be reset when entering interrupt; no need to clear it.
     // Nesting is disabled, and chances of receiving second CCIFG in the ISR
     // are nonexistant.
@@ -55,7 +55,7 @@ fn TIMERA0(cs: CriticalSection) {
 
 #[interrupt]
 fn PORT1(cs: CriticalSection) {
-    let port = &At2XtPeripherals::periph_ref_map(&cs, |p| &p.port).unwrap();
+    let port = At2XtPeripherals::periph_ref_map(&cs).unwrap();
 
     if HOST_MODE.load() {
         let mut keyout = KEY_OUT.borrow(&cs).get();
@@ -188,7 +188,7 @@ fn main(cs: CriticalSection) -> ! {
                 // the micro will only respond to host PC acknowledge requests if its idle.
                 fn reset_requested() -> bool {
                     mspint::free(|cs| {
-                        let port = &At2XtPeripherals::periph_ref_map(cs, |p| &p.port).unwrap();
+                        let port = At2XtPeripherals::periph_ref_map(cs).unwrap();
 
                         driver::is_unset(port, Pins::XT_SENSE)
                     })
@@ -386,7 +386,7 @@ fn delay(time: u16) -> Result<(), ()> {
 
 fn start_timer(time: u16) -> Result<(), ()> {
     mspint::free(|cs| {
-        let timer : &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref(&cs)?;
+        let timer: &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref(&cs)?;
 
         TIMEOUT.store(false);
         timer.taccr0.write(|w| unsafe { w.bits(time) });
