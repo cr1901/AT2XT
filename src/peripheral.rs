@@ -16,15 +16,30 @@ impl At2XtPeripherals {
         PERIPHERALS.borrow(cs).set(self).map_err(|_e| {})
     }
 
-    pub fn periph_ref(cs: &CriticalSection) -> Option<&Self> {
+    fn periph_ref(cs: &CriticalSection) -> Option<&Self> {
         PERIPHERALS.borrow(cs).get()
     }
 
+    pub fn periph_ref_map<T, F>(cs: &CriticalSection, f: F) -> Option<&T>
+    where
+        T: private::Sealed,
+        F: FnOnce(&Self) -> &T,
+    {
+        Self::periph_ref(cs).map(f)
+    }
+
     pub fn port_ref(cs: &CriticalSection) -> Result<&msp430g2211::PORT_1_2, ()> {
-        Ok(&Self::periph_ref(cs).ok_or(())?.port)
+        Self::periph_ref_map(cs, |p| &p.port).ok_or(())
     }
 
     pub fn timer_ref(cs: &CriticalSection) -> Result<&msp430g2211::TIMER_A2, ()> {
-        Ok(&Self::periph_ref(cs).ok_or(())?.timer)
+        Self::periph_ref_map(cs, |p| &p.timer).ok_or(())
     }
+}
+
+mod private {
+    pub trait Sealed {}
+
+    impl Sealed for msp430g2211::PORT_1_2 {}
+    impl Sealed for msp430g2211::TIMER_A2 {}
 }
