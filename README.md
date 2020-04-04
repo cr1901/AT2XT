@@ -123,6 +123,21 @@ except for the use of a `__delay_cycles()` intrinsic. I had no choice here, as
 using the timer for a software delay can lock the keyboard FSM to a single
 state.
 
+### XTATKEY.ASM
+One of the original XT to AT keyboard converters was written by [Chuck Guzis](http://www.vcfed.org/forum/member.php?3458-Chuck(G))
+in 2009. By my own admission, PIC is a better fit for this project due to 5V
+compatibility and fewer parts required. However, I wrote my version in 2013
+because of my familiarity with msp430, easy [5V interfacing](http://www.ti.com/lit/an/slaa148a/slaa148a.pdf)
+and easy access to parts and an msp430 programmer. In contrast, PIC programmers
+at the time were expensive ([less true](https://www.microchip.com/developmenttools/ProductDetails/PartNO/PG164100)
+today), and I didn't feel like buying or making one.
+
+However, since I've used Chuck(G)'s version as inspiration when I got stuck,
+I have provided the [source](http://www.vcfed.org/forum/showthread.php?15907-AT-to-XT-Keyboard-Converter&p=106297#post106297)
+and [schematics](http://www.vcfed.org/forum/showthread.php?15907-AT-to-XT-Keyboard-Converter&p=106341#post106341)
+to his version- _with permission_- under the `legacy-src/XTATKEY` directory.
+See linked forum posts for details.
+
 ## Schematics
 Schematics are provided in DIPTrace ASCII format. PCB is provided using Gerber
 Files and an N/C Drill File.
