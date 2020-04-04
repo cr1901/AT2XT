@@ -26,27 +26,30 @@ impl At2XtPeripherals {
 
     pub fn periph_ref<'a, T>(cs: &'a CriticalSection) -> Result<&'a T, ()>
     where
-        &'a T: private::Sealed + From<&'a super::At2XtPeripherals>
+        &'a T: private::Sealed,
+        super::At2XtPeripherals: AsRef<T>
     {
-        Self::periph_ref_map(cs, |p| From::from(p)).ok_or(())
+        Self::periph_ref_map(cs, |p| p.as_ref()).ok_or(())
     }
 }
 
 mod private {
+    // Not sure if this is necessary, but keep around to restrict the types
+    // that periph_ref can return.
     pub trait Sealed {}
 
     impl Sealed for &msp430g2211::PORT_1_2 {}
     impl Sealed for &msp430g2211::TIMER_A2 {}
 
-    impl<'a> From<&'a super::At2XtPeripherals> for &'a msp430g2211::PORT_1_2 {
-        fn from(p: &'a super::At2XtPeripherals) -> Self {
-            &p.port
+    impl AsRef<msp430g2211::PORT_1_2> for super::At2XtPeripherals {
+        fn as_ref(&self) -> &msp430g2211::PORT_1_2 {
+            &self.port
         }
     }
 
-    impl<'a> From<&'a super::At2XtPeripherals> for &'a msp430g2211::TIMER_A2 {
-        fn from(p: &'a super::At2XtPeripherals) -> Self {
-            &p.timer
+    impl AsRef<msp430g2211::TIMER_A2> for super::At2XtPeripherals {
+        fn as_ref(&self) -> &msp430g2211::TIMER_A2 {
+            &self.timer
         }
     }
 }
