@@ -113,14 +113,10 @@ impl Fsm {
 
         let next_cmd = match next_state {
             State::NotInKey | State::PossibleBreakCode => Ok(Cmd::WaitForKey),
-            State::SimpleKey(k) => match keymap::to_xt(k) {
-                Some(k) => Ok(Cmd::SendXTKey(k)),
-                None => Err(()),
-            },
-            State::KnownBreakCode(b) => match keymap::to_xt(b) {
-                Some(b) => Ok(Cmd::SendXTKey(b | 0x80)),
-                None => Err(()),
-            },
+            State::SimpleKey(k) => keymap::to_xt(k).ok_or(()).map(|k| Cmd::SendXTKey(k)),
+            State::KnownBreakCode(b) => {
+                keymap::to_xt(b).ok_or(()).map(|b| Cmd::SendXTKey(b | 0x80))
+            }
             State::UnmodifiedKey(u) => Ok(Cmd::SendXTKey(u)),
             State::ToggleLedFirst(l) => match l {
                 Self::SCROLL => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::SCROLL)),

@@ -196,9 +196,11 @@ fn main(cs: CriticalSection) -> ! {
 
                 let mut xt_reset: bool = false;
 
-                while mspint::free(|cs| match IN_BUFFER.borrow(cs).try_borrow_mut() {
-                    Ok(b) => b.is_empty(),
-                    Err(_) => true,
+                while mspint::free(|cs| {
+                    IN_BUFFER
+                        .borrow(cs)
+                        .try_borrow_mut()
+                        .map_or(true, |b| b.is_empty())
                 }) {
                     // If host computer wants to reset
                     if reset_requested() {
@@ -212,14 +214,12 @@ fn main(cs: CriticalSection) -> ! {
                 if xt_reset {
                     ProcReply::KeyboardReset
                 } else {
-                    let mut bits_in =
-                        mspint::free(|cs| match IN_BUFFER.borrow(cs).try_borrow_mut() {
-                            Ok(mut b) => match b.take() {
-                                Some(k) => k,
-                                None => 0,
-                            },
-                            Err(_) => 0,
-                        });
+                    let mut bits_in = mspint::free(|cs| {
+                        IN_BUFFER
+                            .borrow(cs)
+                            .try_borrow_mut()
+                            .map_or(0, |mut b| b.take().unwrap_or(0))
+                    });
 
                     bits_in &= !(0x4000 + 0x0001); // Mask out start/stop bit.
                     bits_in >>= 2; // Remove stop bit and parity bit (FIXME: Check parity).
