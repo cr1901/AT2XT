@@ -11,10 +11,9 @@ use msp430::interrupt as mspint;
 use msp430_atomic::AtomicBool;
 use msp430_rt::entry;
 use msp430g2211::{interrupt, Peripherals};
-use once_cell::unsync::OnceCell;
 
 mod keyfsm;
-use keyfsm::{Cmd, Fsm, ProcReply, LedMask};
+use keyfsm::{Cmd, Fsm, LedMask, ProcReply};
 
 mod keybuffer;
 use keybuffer::{KeyIn, KeyOut, KeycodeBuffer};
@@ -22,16 +21,14 @@ use keybuffer::{KeyIn, KeyOut, KeycodeBuffer};
 mod driver;
 use driver::Pins;
 
+mod peripheral;
+use peripheral::At2XtPeripherals;
+
 macro_rules! delay_us {
     ($u:expr) => {
         // Timer is 100000 Hz, thus granularity of 10us.
         delay(($u / 10) + 1)
     };
-}
-
-struct At2XtPeripherals {
-    port: msp430g2211::PORT_1_2,
-    timer: msp430g2211::TIMER_A2,
 }
 
 static TIMEOUT: AtomicBool = AtomicBool::new(false);
@@ -41,15 +38,16 @@ static DEVICE_ACK: AtomicBool = AtomicBool::new(false);
 static IN_BUFFER: Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
 static KEY_IN: Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
 static KEY_OUT: Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
-static PERIPHERALS: Mutex<OnceCell<At2XtPeripherals>> = Mutex::new(OnceCell::new());
 
 #[interrupt]
 fn TIMERA0(cs: CriticalSection) {
     TIMEOUT.store(true);
 
-    let p = PERIPHERALS.borrow(&cs).get().unwrap();
+    // Use unwrap b/c within interrupt handlers, if we can't get access to
+    // peripherals right away, there's no point in continuing.
+    let timer: &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref(&cs).unwrap();
     // Writing 0x0000 stops Timer in MC1.
-    p.timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
+    timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
     // CCIFG will be reset when entering interrupt; no need to clear it.
     // Nesting is disabled, and chances of receiving second CCIFG in the ISR
     // are nonexistant.
@@ -57,7 +55,7 @@ fn TIMERA0(cs: CriticalSection) {
 
 #[interrupt]
 fn PORT1(cs: CriticalSection) {
-    let port = &PERIPHERALS.borrow(&cs).get().unwrap().port;
+    let port = At2XtPeripherals::periph_ref(&cs).unwrap();
 
     if HOST_MODE.load() {
         let mut keyout = KEY_OUT.borrow(&cs).get();
@@ -140,7 +138,7 @@ fn init(cs: CriticalSection) {
         timer: p.TIMER_A2,
     };
 
-    PERIPHERALS.borrow(&cs).set(shared).ok().unwrap();
+    At2XtPeripherals::init(shared, &cs).unwrap();
 
     drop(cs);
     unsafe {
@@ -190,7 +188,7 @@ fn main(cs: CriticalSection) -> ! {
                 // the micro will only respond to host PC acknowledge requests if its idle.
                 fn reset_requested() -> bool {
                     mspint::free(|cs| {
-                        let port = &PERIPHERALS.borrow(cs).get().unwrap().port;
+                        let port = At2XtPeripherals::periph_ref(cs).unwrap();
 
                         driver::is_unset(port, Pins::XT_SENSE)
                     })
@@ -198,9 +196,11 @@ fn main(cs: CriticalSection) -> ! {
 
                 let mut xt_reset: bool = false;
 
-                while mspint::free(|cs| match IN_BUFFER.borrow(cs).try_borrow_mut() {
-                    Ok(b) => b.is_empty(),
-                    Err(_) => true,
+                while mspint::free(|cs| {
+                    IN_BUFFER
+                        .borrow(cs)
+                        .try_borrow_mut()
+                        .map_or(true, |b| b.is_empty())
                 }) {
                     // If host computer wants to reset
                     if reset_requested() {
@@ -214,14 +214,12 @@ fn main(cs: CriticalSection) -> ! {
                 if xt_reset {
                     ProcReply::KeyboardReset
                 } else {
-                    let mut bits_in =
-                        mspint::free(|cs| match IN_BUFFER.borrow(cs).try_borrow_mut() {
-                            Ok(mut b) => match b.take() {
-                                Some(k) => k,
-                                None => 0,
-                            },
-                            Err(_) => 0,
-                        });
+                    let mut bits_in = mspint::free(|cs| {
+                        IN_BUFFER
+                            .borrow(cs)
+                            .try_borrow_mut()
+                            .map_or(0, |mut b| b.take().unwrap_or(0))
+                    });
 
                     bits_in &= !(0x4000 + 0x0001); // Mask out start/stop bit.
                     bits_in >>= 2; // Remove stop bit and parity bit (FIXME: Check parity).
@@ -237,10 +235,7 @@ fn main(cs: CriticalSection) -> ! {
 
 pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
     mspint::free(|cs| {
-        let port = match PERIPHERALS.borrow(cs).get() {
-            Some(p) => &p.port,
-            None => return Err(()),
-        };
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         if bit == 1 {
             driver::set(port, Pins::XT_DATA);
@@ -256,10 +251,7 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
     delay_us!(55)?;
 
     mspint::free(|cs| {
-        let port = match PERIPHERALS.borrow(cs).get() {
-            Some(p) => &p.port,
-            None => return Err(()),
-        };
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         driver::set(port, Pins::XT_CLK);
         Ok(())
@@ -271,10 +263,7 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
 pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
     fn wait_for_host() -> Result<bool, ()> {
         mspint::free(|cs| {
-            let port = match PERIPHERALS.borrow(cs).get() {
-                Some(p) => &p.port,
-                None => return Err(()),
-            };
+            let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
             let clk_or_data_unset =
                 driver::is_unset(port, Pins::XT_CLK) || driver::is_unset(port, Pins::XT_DATA);
@@ -301,10 +290,7 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
     }
 
     mspint::free(|cs| {
-        let port = match PERIPHERALS.borrow(cs).get() {
-            Some(p) => &p.port,
-            None => return Err(()),
-        };
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         driver::xt_in(port);
         Ok(())
@@ -320,10 +306,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     // we do it from the interrupted bit. This seems to work fine.
     fn wait_for_at_keyboard() -> Result<bool, ()> {
         mspint::free(|cs| {
-            let port = match PERIPHERALS.borrow(cs).get() {
-                Some(p) => &p.port,
-                None => return Err(()),
-            };
+            let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
             let unset = driver::is_unset(port, Pins::AT_CLK);
 
@@ -336,10 +319,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     }
 
     mspint::free(|cs| {
-        let port = match PERIPHERALS.borrow(cs).get() {
-            Some(p) => &p.port,
-            None => return Err(()),
-        };
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         let mut key_out = KEY_OUT.borrow(cs).get();
 
@@ -360,10 +340,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     delay_us!(100)?;
 
     mspint::free(|cs| {
-        let port = match PERIPHERALS.borrow(cs).get() {
-            Some(p) => &p.port,
-            None => return Err(()),
-        };
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         driver::unset(port, Pins::AT_DATA);
         Ok(())
@@ -372,10 +349,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     delay_us!(33)?;
 
     mspint::free(|cs| {
-        let port = match PERIPHERALS.borrow(cs).get() {
-            Some(p) => &p.port,
-            None => return Err(()),
-        };
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         driver::set(port, Pins::AT_CLK);
         driver::mk_in(port, Pins::AT_CLK);
@@ -412,10 +386,7 @@ fn delay(time: u16) -> Result<(), ()> {
 
 fn start_timer(time: u16) -> Result<(), ()> {
     mspint::free(|cs| {
-        let timer = match PERIPHERALS.borrow(cs).get() {
-            Some(p) => &p.timer,
-            None => return Err(()),
-        };
+        let timer: &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         TIMEOUT.store(false);
         timer.taccr0.write(|w| unsafe { w.bits(time) });
