@@ -16,19 +16,15 @@ impl At2XtPeripherals {
         PERIPHERALS.borrow(cs).set(self).map_err(|_e| {})
     }
 
-    pub fn periph_ref_unwrap(cs: &CriticalSection) -> &Self {
-        PERIPHERALS.borrow(cs).get().unwrap()
-    }
-
-    fn periph_ref(cs: &CriticalSection) -> Result<&Self, ()> {
-        PERIPHERALS.borrow(cs).get().ok_or(())
+    pub fn periph_ref(cs: &CriticalSection) -> Option<&Self> {
+        PERIPHERALS.borrow(cs).get()
     }
 
     pub fn port_ref(cs: &CriticalSection) -> Result<&msp430g2211::PORT_1_2, ()> {
-        Ok(&Self::periph_ref(cs)?.port)
+        Ok(&Self::periph_ref(cs).ok_or(())?.port)
     }
 
     pub fn timer_ref(cs: &CriticalSection) -> Result<&msp430g2211::TIMER_A2, ()> {
-        Ok(&Self::periph_ref(cs)?.timer)
+        Ok(&Self::periph_ref(cs).ok_or(())?.timer)
     }
 }

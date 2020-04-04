@@ -45,7 +45,7 @@ fn TIMERA0(cs: CriticalSection) {
 
     // Use unwrap b/c within interrupt handlers, if we can't get access to
     // peripherals right away, there's no point in continuing.
-    let t = &At2XtPeripherals::periph_ref_unwrap(&cs).timer;
+    let t = &At2XtPeripherals::periph_ref(&cs).unwrap().timer;
     // Writing 0x0000 stops Timer in MC1.
     t.taccr0.write(|w| unsafe { w.bits(0x0000) });
     // CCIFG will be reset when entering interrupt; no need to clear it.
@@ -55,7 +55,7 @@ fn TIMERA0(cs: CriticalSection) {
 
 #[interrupt]
 fn PORT1(cs: CriticalSection) {
-    let port = &At2XtPeripherals::periph_ref_unwrap(&cs).port;
+    let port = &At2XtPeripherals::periph_ref(&cs).unwrap().port;
 
     if HOST_MODE.load() {
         let mut keyout = KEY_OUT.borrow(&cs).get();
@@ -188,7 +188,7 @@ fn main(cs: CriticalSection) -> ! {
                 // the micro will only respond to host PC acknowledge requests if its idle.
                 fn reset_requested() -> bool {
                     mspint::free(|cs| {
-                        let port = &At2XtPeripherals::periph_ref_unwrap(cs).port;
+                        let port = &At2XtPeripherals::periph_ref(cs).unwrap().port;
 
                         driver::is_unset(port, Pins::XT_SENSE)
                     })
