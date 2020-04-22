@@ -1,5 +1,6 @@
 use bitflags::bitflags;
-use msp430g2211::generic::{Readable, Reg, Writable, R};
+use msp430g2211::generic::{Readable, Reg, Writable, R, W};
+use msp430g2211::port_1_2::*;
 
 bitflags! {
     pub struct Pins: u8 {
@@ -22,23 +23,65 @@ impl<T> From<&R<u8, T>> for Pins {
     }
 }
 
+unsafe trait PortWrite {
+    fn bits(&mut self, bits: u8) -> &mut Self;
+}
+
+unsafe impl PortWrite for p1in::W {
+    fn bits(&mut self, bits: u8) -> &mut Self {
+        unsafe { self.bits(bits) }
+    }
+}
+
+unsafe impl PortWrite for p1out::W {
+    fn bits(&mut self, bits: u8) -> &mut Self {
+        unsafe { self.bits(bits) }
+    }
+}
+
+unsafe impl PortWrite for p1dir::W {
+    fn bits(&mut self, bits: u8) -> &mut Self {
+        unsafe { self.bits(bits) }
+    }
+}
+
+unsafe impl PortWrite for p1ifg::W {
+    fn bits(&mut self, bits: u8) -> &mut Self {
+        unsafe { self.bits(bits) }
+    }
+}
+
+unsafe impl PortWrite for p1ie::W {
+    fn bits(&mut self, bits: u8) -> &mut Self {
+        unsafe { self.bits(bits) }
+    }
+}
+
+unsafe impl PortWrite for p1ies::W {
+    fn bits(&mut self, bits: u8) -> &mut Self {
+        unsafe { self.bits(bits) }
+    }
+}
+
 fn set_port_reg<REG>(reg: &Reg<u8, REG>, pins: Pins)
 where
     Reg<u8, REG>: Readable + Writable,
+    W<u8, Reg<u8, REG>>: PortWrite,
 {
     reg.modify(|r, w| {
         let p = Pins::from(r) | pins;
-        unsafe { w.bits(p.bits()) }
+        PortWrite::bits(w, p.bits())
     });
 }
 
 fn clear_port_reg<REG>(reg: &Reg<u8, REG>, pins: Pins)
 where
     Reg<u8, REG>: Readable + Writable,
+    W<u8, Reg<u8, REG>>: PortWrite,
 {
     reg.modify(|r, w| {
         let p = Pins::from(r) & !pins;
-        unsafe { w.bits(p.bits()) }
+        PortWrite::bits(w, p.bits())
     });
 }
 
