@@ -355,9 +355,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
         driver::mk_in(port, Pins::AT_CLK);
         driver::clear_at_clk_int(port);
 
-        unsafe {
-            driver::enable_at_clk_int(port);
-        }
+        driver::enable_at_clk_int(port);
         HOST_MODE.store(true);
         DEVICE_ACK.store(false);
         Ok(())

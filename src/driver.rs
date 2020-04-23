@@ -119,8 +119,7 @@ pub fn disable_at_clk_int(p: &msp430g2211::PORT_1_2) {
 }
 
 // Unsafe because can be used in contexts where it's assumed pin ints can't occur.
-#[allow(unused_unsafe)]
-pub unsafe fn enable_at_clk_int(p: &msp430g2211::PORT_1_2) {
+pub fn enable_at_clk_int(p: &msp430g2211::PORT_1_2) {
     set_port_reg(&p.p1ie, Pins::AT_CLK);
 }
 
