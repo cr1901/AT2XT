@@ -140,10 +140,7 @@ fn init(cs: CriticalSection) {
 
     At2XtPeripherals::init(shared, &cs).unwrap();
 
-    drop(cs);
-    unsafe {
-        mspint::enable();
-    }
+    mspint::enable_cs(cs);
 }
 
 #[entry]
