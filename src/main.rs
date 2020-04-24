@@ -1,6 +1,7 @@
 #![no_main]
 #![no_std]
 #![feature(abi_msp430_interrupt)]
+#![deny(unsafe_code)]
 
 extern crate panic_msp430;
 
@@ -47,7 +48,7 @@ fn TIMERA0(cs: CriticalSection) {
     // peripherals right away, there's no point in continuing.
     let timer: &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref(&cs).unwrap();
     // Writing 0x0000 stops Timer in MC1.
-    timer.taccr0.write(|w| unsafe { w.bits(0x0000) });
+    timer.taccr0.write(|w| w.taccr0().bits(0x0000));
     // CCIFG will be reset when entering interrupt; no need to clear it.
     // Nesting is disabled, and chances of receiving second CCIFG in the ISR
     // are nonexistant.
@@ -115,10 +116,9 @@ fn PORT1(cs: CriticalSection) {
 fn init(cs: CriticalSection) {
     let p = Peripherals::take().unwrap();
 
-    p.WATCHDOG_TIMER.wdtctl.write(|w| unsafe {
-        const PASSWORD: u16 = 0x5A00;
-        w.bits(PASSWORD).wdthold().set_bit()
-    });
+    p.WATCHDOG_TIMER
+        .wdtctl
+        .write(|w| w.wdtpw().password().wdthold().set_bit());
 
     driver::idle(&p.PORT_1_2);
 
@@ -127,7 +127,7 @@ fn init(cs: CriticalSection) {
         .write(|w| w.xt2off().set_bit().rsel3().set_bit()); // XT2 off, Range Select 7.
     p.SYSTEM_CLOCK.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4.
 
-    p.TIMER_A2.taccr0.write(|w| unsafe { w.bits(0x0000) });
+    p.TIMER_A2.taccr0.write(|w| w.taccr0().bits(0x0000));
     p.TIMER_A2
         .tactl
         .write(|w| w.tassel().tassel_2().id().id_2().mc().mc_1());
@@ -384,7 +384,7 @@ fn start_timer(time: u16) -> Result<(), ()> {
         let timer: &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         TIMEOUT.store(false);
-        timer.taccr0.write(|w| unsafe { w.bits(time) });
+        timer.taccr0.write(|w| w.taccr0().bits(time));
         Ok(())
     })
 }

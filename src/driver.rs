@@ -23,43 +23,43 @@ impl<T> From<&R<u8, T>> for Pins {
     }
 }
 
-unsafe trait PortWrite {
+trait PortWrite {
     fn bits(&mut self, bits: u8) -> &mut Self;
 }
 
-unsafe impl PortWrite for p1in::W {
+impl PortWrite for p1in::W {
     fn bits(&mut self, bits: u8) -> &mut Self {
-        unsafe { self.bits(bits) }
+        self.p1in().bits(bits)
     }
 }
 
-unsafe impl PortWrite for p1out::W {
+impl PortWrite for p1out::W {
     fn bits(&mut self, bits: u8) -> &mut Self {
-        unsafe { self.bits(bits) }
+        self.p1out().bits(bits)
     }
 }
 
-unsafe impl PortWrite for p1dir::W {
+impl PortWrite for p1dir::W {
     fn bits(&mut self, bits: u8) -> &mut Self {
-        unsafe { self.bits(bits) }
+        self.p1dir().bits(bits)
     }
 }
 
-unsafe impl PortWrite for p1ifg::W {
+impl PortWrite for p1ifg::W {
     fn bits(&mut self, bits: u8) -> &mut Self {
-        unsafe { self.bits(bits) }
+        self.p1ifg().bits(bits)
     }
 }
 
-unsafe impl PortWrite for p1ie::W {
+impl PortWrite for p1ie::W {
     fn bits(&mut self, bits: u8) -> &mut Self {
-        unsafe { self.bits(bits) }
+        self.p1ie().bits(bits)
     }
 }
 
-unsafe impl PortWrite for p1ies::W {
+impl PortWrite for p1ies::W {
     fn bits(&mut self, bits: u8) -> &mut Self {
-        unsafe { self.bits(bits) }
+        self.p1ies().bits(bits)
     }
 }
 
@@ -108,7 +108,7 @@ pub fn is_unset(p: &msp430g2211::PORT_1_2, pins: Pins) -> bool {
 }
 
 pub fn idle(p: &msp430g2211::PORT_1_2) {
-    p.p1dir.write(|w| unsafe { w.bits(0x00) });
+    p.p1dir.write(|w| w.p1dir().bits(0x00));
     clear_port_reg(&p.p1ifg, Pins::AT_CLK);
     set_port_reg(&p.p1ies, Pins::AT_CLK);
     set_port_reg(&p.p1ie, Pins::AT_CLK);
