@@ -1,5 +1,5 @@
 MODE := "release"
-XFLAGS := "--release"
+CFLAGS := "-Zbuild-std=core --release"
 TARGET := "target/msp430-none-elf/" + MODE + "/at2xt"
 CLIPPY_LINTS := '-W clippy::if_not_else -W clippy::match_same_arms -W clippy::as_conversions \\
   -W clippy::indexing_slicing -W clippy::let_underscore_must_use'
@@ -7,14 +7,14 @@ CLIPPY_LINTS := '-W clippy::if_not_else -W clippy::match_same_arms -W clippy::as
 
 # Build AT2XT.
 timer:
-    xargo build {{XFLAGS}} --target=msp430-none-elf
+    cargo build {{CFLAGS}} --target=msp430-none-elf
     msp430-elf-objdump -Cd {{TARGET}} > {{TARGET}}.lst
     msp430-elf-readelf -a --wide {{TARGET}} > {{TARGET}}.sym
     msp430-elf-size {{TARGET}}
 
 # Build AT2XT and extra artifacts.
 timer-extra:
-    xargo rustc {{XFLAGS}} --target=msp430-none-elf -- --emit=obj={{TARGET}}.o
+    cargo rustc {{CFLAGS}} --target=msp430-none-elf -- --emit=obj={{TARGET}}.o
     msp430-elf-objdump -Cd {{TARGET}} > {{TARGET}}.lst
     msp430-elf-readelf -a --wide {{TARGET}} > {{TARGET}}.sym
     msp430-elf-objdump -Cd {{TARGET}}.o > {{TARGET}}.o.lst
@@ -23,32 +23,32 @@ timer-extra:
 
 # Run clippy on AT2XT.
 clippy:
-  xargo clippy --target=msp430-none-elf -- {{CLIPPY_LINTS}}
+  cargo clippy --target=msp430-none-elf -- {{CLIPPY_LINTS}}
 
 # Run clippy on AT2XT- pedantic mode (many lints won't apply).
 clippy-pedantic:
-  xargo clippy --target=msp430-none-elf -- -W clippy::pedantic
+  cargo clippy --target=msp430-none-elf -- -W clippy::pedantic
 
 # Combine with: just clippy-restriction 2>&1 | grep https:// | tr -s " " | sort | uniq?
 # Run clippy on AT2XT- restriction mode (many lints won't apply).
 clippy-restriction:
-  xargo clippy --target=msp430-none-elf -- -W clippy::restriction
+  cargo clippy --target=msp430-none-elf -- -W clippy::restriction
 
 # Fix warnings in AT2XT.
 fix:
-  xargo fix --target=msp430-none-elf
+  cargo fix --target=msp430-none-elf
 
 # Fix warnings and attempt to apply clippy suggestions (nightly only).
 fix-clippy:
-  xargo fix -Z unstable-options --target=msp430-none-elf --clippy
+  cargo fix -Z unstable-options --target=msp430-none-elf --clippy
 
 # Format AT2XT source.
 fmt:
-  xargo fmt
+  cargo fmt
 
 # Remove AT2XT and dependencies.
 clean:
-    xargo clean
+    cargo clean
 
 # Upload firmware to AT2XT board using MSP-EXP430G2.
 prog:
@@ -83,7 +83,7 @@ _diff-asm:
       FINAL_BINARY=$CARGO_TARGET_DIR/msp430-none-elf/release/$1
       ARTIFACT_PREFIX=$STAGING/$1''$SUFFIX
 
-      xargo rustc --release --target=msp430-none-elf -- --emit=asm=$ARTIFACT_PREFIX.rs.lst,obj=$ARTIFACT_PREFIX.o || true
+      cargo rustc --release --target=msp430-none-elf -- --emit=asm=$ARTIFACT_PREFIX.rs.lst,obj=$ARTIFACT_PREFIX.o || true
       msp430-elf-objdump -Cd $FINAL_BINARY > $ARTIFACT_PREFIX.lst
       msp430-elf-readelf -s --wide $FINAL_BINARY > $ARTIFACT_PREFIX.sym
       msp430-elf-objdump -Cd $ARTIFACT_PREFIX.o > $ARTIFACT_PREFIX.o.lst

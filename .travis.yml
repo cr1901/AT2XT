@@ -4,7 +4,6 @@ rust:
 env:
   - TARGET=timer
 install:
-  - cargo install --list | grep 'xargo' || cargo install xargo
   - cargo install --list | grep 'just' || cargo install just
   - rustup component list | grep 'rust-src.*installed' || rustup component add rust-src
 before_script:

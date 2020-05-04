@@ -4,6 +4,7 @@
 #![deny(unsafe_code)]
 
 extern crate panic_msp430;
+extern crate rlibc; // Bring in memcpy, memmove, etc. as needed.
 
 use bare_metal::{CriticalSection, Mutex};
 use bit_reverse::BitwiseReverse;

@@ -25,7 +25,8 @@ immediately and I/O processing occurs in the main loop. In the C version the
 FSM _is_ the main loop, and I/O processing is embedded.
 
 ### Prerequisites
-This source requires the Rust nightly compiler for the foreseeable future.
+This source requires the Rust nightly compiler for the foreseeable future due
+to the use of `abi_msp430_interrupt` [feature](https://doc.rust-lang.org/unstable-book/language-features/abi-msp430-interrupt.html).
 To obtain the nightly compiler and relevant dependencies:
 
 1. Visit the rustup [website](www.rustup.rs) and follow the instructions to
@@ -35,32 +36,33 @@ on Windows_, but choose which version makes sense for you.
 2. `rustup` should now be on your path. Obtain the nightly compiler with:
 `rustup install nightly`. As of before July 16, 2017, MSP430 support is
 enabled in Rust nightly. Switch to the nightly compiler by running:
-`rustup default nightly`.
+`rustup default nightly`. Alternatively, if you only want to use the nightly
+compiler for this project, you can run `rustup override set --path /path/to/AT2XT/root nightly`.
+This tells `rustup` to use the nightly compiler by default when compiling the
+AT2XT crate.
 
-3. MSP430 needs a `libcore` installed that doesn't conflict w/ your host. The
-`xargo` program allows a developer to maintain multiple `libcores` for
-multiple archs simultaneously: `cargo install xargo`.
-
-4. Obtain `msp430-elf-gcc` from TI at the bottom of
+3. Obtain `msp430-elf-gcc` from TI at the bottom of
 [this page](http://www.ti.com/tool/msp430-gcc-opensource), and make sure the
-toolchain's bin directory is visible to Rust. As I understand it, the GCC
-toolchain is required because Rust is hardcoded to call the compiler driver
-to assemble if LLVM is not emitting object files itself; LLVM doesn't emit
-objects for MSP430 as of this writing. Furthermore, binutils will
-be required for the foreseeable future for the linker.
+toolchain's bin directory is visible to Rust. Until LLVM gets linker support
+for msp430, binutils is required for the linker.
 
 ### Building
+MSP430 needs a `libcore` installed that doesn't conflict w/ your host. The
+_unstable_ `cargo` feature `-Zbuild-std=core` allows a developer to maintain
+multiple `libcores` for multiple archs simultaneously.
+
 The current command to build is:
-`xargo build --release --target=msp430-none-elf`. This command has changed
-over time, so I provide a [Justfile](https://github.com/casey/just) as well.
-Run `just --list` for a list of avilable recipes. The build can be further
-customized by setting the following variables on the `just` command line
-(e.g. `just MODE=release`):
+`cargo build -Zbuild-std=core --release --target=msp430-none-elf`. This command
+has changed over time, so I provide a [Justfile](https://github.com/casey/just)
+as well. Run `just --list` for a list of avilable recipes. The build can be
+further customized by setting the following variables on the `just` command
+line (e.g. `just MODE=release`):
 
 * `MODE`: `release` or `debug`. Defaults to `release`, which _must_ be paired
-  with the `--release` option to `xargo`.
-* `XFLAGS`: Flags to pass to `xargo`. Defaults to `--release`; unset if doing
-  a `debug` build.
+  with the `--release` option to `cargo`.
+* `CFLAGS`: Flags to pass to `cargo`. Defaults to `-Zbuild-std=core --release`;
+  the `-Zbuild-std=core` option is unconditionally required, but `--release`
+  should be unset if doing a `debug` build.
 
 ### Dependencies Caveats
 #### Compiler/Dependency Mismatches
