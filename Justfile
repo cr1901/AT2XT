@@ -14,7 +14,7 @@ timer:
 
 # Build AT2XT and extra artifacts.
 timer-extra:
-    cargo rustc {{CFLAGS}} --target=msp430-none-elf -- --emit=obj={{TARGET}}.o
+    cargo rustc {{CFLAGS}} --target=msp430-none-elf -- --emit=obj={{TARGET}}.o,llvm-ir={{TARGET}}.ll
     msp430-elf-objdump -Cd {{TARGET}} > {{TARGET}}.lst
     msp430-elf-readelf -a --wide {{TARGET}} > {{TARGET}}.sym
     msp430-elf-objdump -Cd {{TARGET}}.o > {{TARGET}}.o.lst
