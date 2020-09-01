@@ -260,8 +260,7 @@ int main()
 	AT2XT_FSM();
 }
 
-#pragma vector=PORT1_VECTOR
-__interrupt void PCOutKeyIn(void)
+__interrupt_vec(PORT1_VECTOR) void PCOutKeyIn(void)
 {
 	#ifdef __DEBUG__
 		counterc++;
@@ -361,8 +360,7 @@ __interrupt void PCOutKeyIn(void)
 	P1IFG &= ~PORT1_CLK; //Clear the flag which caused the interrupt!
 }
 
-#pragma vector=TIMERA0_VECTOR
-__interrupt void TimerTimedOut(void)
+__interrupt_vec(TIMERA0_VECTOR) void TimerTimedOut(void)
 {
 	#ifdef __DEBUG__
 		counterd++;
