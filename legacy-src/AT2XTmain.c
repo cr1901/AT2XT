@@ -14,6 +14,21 @@
 
 #endif
 
+/* https://lists.llvm.org/pipermail/llvm-dev/2018-May/123600.html */
+#ifdef __clang__
+#define ISR_BEGIN(id) __attribute__((interrupt(0)))
+#else
+#define ISR_BEGIN(id) __interrupt_vec(id)
+#endif
+
+#ifdef __clang__
+#define ISR_END(name)                                                          \
+    __attribute__((section("__interrupt_vector_" #name), aligned(2))) void (   \
+        *__vector_##name)(void) = name;
+#else
+#define ISR_END(name)
+#endif
+
 /* Extern definitions */
 volatile char keycode_buffer[16] = {'\0'};
 volatile char buffer_tail = 0, buffer_head = 0;
@@ -260,7 +275,8 @@ int main()
 	AT2XT_FSM();
 }
 
-__interrupt_vec(PORT1_VECTOR) void PCOutKeyIn(void)
+ISR_BEGIN(PORT1_VECTOR)
+void PCOutKeyIn(void)
 {
 	#ifdef __DEBUG__
 		counterc++;
@@ -359,8 +375,10 @@ __interrupt_vec(PORT1_VECTOR) void PCOutKeyIn(void)
 	}
 	P1IFG &= ~PORT1_CLK; //Clear the flag which caused the interrupt!
 }
+ISR_END(PCOutKeyIn)
 
-__interrupt_vec(TIMERA0_VECTOR) void TimerTimedOut(void)
+ISR_BEGIN(TIMERA0_VECTOR)
+void TimerTimedOut(void)
 {
 	#ifdef __DEBUG__
 		counterd++;
@@ -368,3 +386,4 @@ __interrupt_vec(TIMERA0_VECTOR) void TimerTimedOut(void)
 	timeout = TRUE;
 	StopTimer();
 }
+ISR_END(TimerTimedOut)
