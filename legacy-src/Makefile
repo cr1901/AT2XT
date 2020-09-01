@@ -1,4 +1,4 @@
-CFLAGS=-Os -I. -flto -ffunction-sections -fdata-sections
+CFLAGS=-mmcu=msp430g2211 -Os -I. -ffunction-sections -fdata-sections
 LDFLAGS=-mmcu=msp430g2211 -Tmsp430g2211.ld -Wl,-Map=at2xt.map -Wl,--gc-sections
 
 
