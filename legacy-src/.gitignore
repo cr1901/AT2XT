@@ -3,3 +3,6 @@
 *.lst
 *.sym
 *.map
+include.mk
+gcc-build
+clang-build

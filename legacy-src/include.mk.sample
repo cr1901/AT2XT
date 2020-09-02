@@ -1,0 +1,6 @@
+TOOLCHAIN ?= gcc # "gcc" or "clang"
+GCC_SYSROOT ?= /path/to/gcc/sysroot # Clang needs to know where msp430-elf-gcc lives for msp430.
+
+# Toolchain paths- Must include trailing slash if set.
+GCC_PATH ?=
+CLANG_PATH ?=
