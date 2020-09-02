@@ -276,7 +276,7 @@ int main()
 }
 
 ISR_BEGIN(PORT1_VECTOR)
-void PCOutKeyIn(void)
+void port1(void)
 {
 	#ifdef __DEBUG__
 		counterc++;
@@ -360,7 +360,7 @@ void PCOutKeyIn(void)
 					P1In_buffer = (short) ReverseBits((unsigned char) P1In_buffer);
 					keycode_buffer[buffer_tail] = (char) P1In_buffer;
 					buffer_tail = (++buffer_tail) % 16;
-					LPM3_EXIT;
+					// LPM3_EXIT;
 				}
 				P1In_buffer = 0x0000;
 				/* Clear the buffer in to prevent the previous value from influencing the
@@ -375,10 +375,10 @@ void PCOutKeyIn(void)
 	}
 	P1IFG &= ~PORT1_CLK; //Clear the flag which caused the interrupt!
 }
-ISR_END(PCOutKeyIn)
+ISR_END(port1)
 
 ISR_BEGIN(TIMERA0_VECTOR)
-void TimerTimedOut(void)
+void timera0(void)
 {
 	#ifdef __DEBUG__
 		counterd++;
@@ -386,4 +386,4 @@ void TimerTimedOut(void)
 	timeout = TRUE;
 	StopTimer();
 }
-ISR_END(TimerTimedOut)
+ISR_END(timera0)

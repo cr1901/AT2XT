@@ -7,7 +7,7 @@ LDFLAGS=-mmcu=msp430g2211 -Tmsp430g2211.ld -Wl,-Map=at2xt.map -Wl,--gc-sections
 else ifeq ($(TOOLCHAIN), clang)
 CC=$(CLANG_PATH)clang --target=msp430 --gcc-toolchain=$(GCC_SYSROOT)
 CFLAGS=-Os -I. -ffunction-sections -fdata-sections
-LDFLAGS=-mmcu=msp430g2211 -Tmsp430g2211.ld -Wl,-Map=at2xt.map -Wl,--gc-sections
+LDFLAGS=-mmcu=msp430g2211 -Tmsp430g2211.ld -Wl,-Map=at2xt.map
 endif
 
 at2xt.elf: AT2XT_FSM.o AT2XTmain.o
