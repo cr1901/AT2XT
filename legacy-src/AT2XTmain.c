@@ -25,6 +25,8 @@
 #define ISR_END(name)                                                          \
     __attribute__((section("__interrupt_vector_" #name), aligned(2))) void (   \
         *__vector_##name)(void) = name;
+	__asm(".refsym __crt0_init_bss");
+	__asm(".refsym __crt0_movedata");
 #else
 #define ISR_END(name)
 #endif
