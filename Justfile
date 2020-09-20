@@ -1,5 +1,5 @@
 MODE := "release"
-CFLAGS := "-Zbuild-std=core --release"
+CFLAGS := "--release -Zbuild-std=core --target=msp430-none-elf"
 TARGET := "target/msp430-none-elf/" + MODE + "/at2xt"
 CLIPPY_LINTS := '-W clippy::if_not_else -W clippy::match_same_arms -W clippy::as_conversions \\
   -W clippy::indexing_slicing -W clippy::let_underscore_must_use'
@@ -7,40 +7,40 @@ CLIPPY_LINTS := '-W clippy::if_not_else -W clippy::match_same_arms -W clippy::as
 
 # Build AT2XT.
 timer:
-    cargo build {{CFLAGS}} --target=msp430-none-elf
+    cargo build {{CFLAGS}}
     msp430-elf-objdump -Cd {{TARGET}} > {{TARGET}}.lst
     msp430-elf-readelf -a --wide {{TARGET}} > {{TARGET}}.sym
     msp430-elf-size {{TARGET}}
 
 # Build AT2XT and extra artifacts.
 timer-extra:
-    cargo rustc {{CFLAGS}} --target=msp430-none-elf -- --emit=obj={{TARGET}}.o,llvm-ir={{TARGET}}.ll
+    cargo rustc {{CFLAGS}} -- --emit=obj={{TARGET}}.o,llvm-ir={{TARGET}}.ll
     msp430-elf-objdump -Cd {{TARGET}} > {{TARGET}}.lst
     msp430-elf-readelf -a --wide {{TARGET}} > {{TARGET}}.sym
     msp430-elf-objdump -Cd {{TARGET}}.o > {{TARGET}}.o.lst
-    msp430-elf-readelf -r --wide {{TARGET}}.o > {{TARGET}}.reloc
+    msp430-elf-readelf -a --wide {{TARGET}}.o > {{TARGET}}.reloc
     msp430-elf-size {{TARGET}}
 
 # Run clippy on AT2XT.
 clippy:
-  cargo clippy -Zbuild-std=core --target=msp430-none-elf -- {{CLIPPY_LINTS}}
+  cargo clippy {{CFLAGS}} -- {{CLIPPY_LINTS}}
 
 # Run clippy on AT2XT- pedantic mode (many lints won't apply).
 clippy-pedantic:
-  cargo clippy -Zbuild-std=core --target=msp430-none-elf -- -W clippy::pedantic
+  cargo clippy {{CFLAGS}} -- -W clippy::pedantic
 
 # Combine with: just clippy-restriction 2>&1 | grep https:// | tr -s " " | sort | uniq?
 # Run clippy on AT2XT- restriction mode (many lints won't apply).
 clippy-restriction:
-  cargo clippy -Zbuild-std=core --target=msp430-none-elf -- -W clippy::restriction
+  cargo clippy {{CFLAGS}} -- -W clippy::restriction
 
 # Fix warnings in AT2XT.
 fix:
-  cargo fix -Zbuild-std=core --target=msp430-none-elf
+  cargo fix {{CFLAGS}}
 
 # Fix warnings and attempt to apply clippy suggestions (nightly only).
 fix-clippy:
-  cargo clippy --fix -Zunstable-options -Zbuild-std=core --target=msp430-none-elf
+  cargo clippy --fix -Zunstable-options {{CFLAGS}}
 
 # Format AT2XT source.
 fmt:

@@ -52,7 +52,7 @@ _unstable_ `cargo` feature `-Zbuild-std=core` allows a developer to maintain
 multiple `libcores` for multiple archs simultaneously.
 
 The current command to build is:
-`cargo build -Zbuild-std=core --release --target=msp430-none-elf`. This command
+`cargo build --release -Zbuild-std=core --target=msp430-none-elf`. This command
 has changed over time, so I provide a [Justfile](https://github.com/casey/just)
 as well. Run `just --list` for a list of avilable recipes. The build can be
 further customized by setting the following variables on the `just` command
@@ -60,9 +60,10 @@ line (e.g. `just MODE=release`):
 
 * `MODE`: `release` or `debug`. Defaults to `release`, which _must_ be paired
   with the `--release` option to `cargo`.
-* `CFLAGS`: Flags to pass to `cargo`. Defaults to `-Zbuild-std=core --release`;
-  the `-Zbuild-std=core` option is unconditionally required, but `--release`
-  should be unset if doing a `debug` build.
+* `CFLAGS`: Flags to pass to `cargo`. Defaults to `--release -Zbuild-std=core --target=msp430-none-elf`;
+  the `-Zbuild-std=core` and `--target=msp430-none-elf` flags are
+  unconditionally required, but `--release` should be unset if doing a `debug`
+  build.
 
 ### Dependencies Caveats
 #### Compiler/Dependency Mismatches
