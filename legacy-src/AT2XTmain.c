@@ -14,6 +14,23 @@
 
 #endif
 
+/* https://lists.llvm.org/pipermail/llvm-dev/2018-May/123600.html */
+#ifdef __clang__
+#define ISR_BEGIN(id) __attribute__((interrupt(0)))
+#else
+#define ISR_BEGIN(id) __interrupt_vec(id)
+#endif
+
+#ifdef __clang__
+#define ISR_END(name)                                                          \
+    __attribute__((section("__interrupt_vector_" #name), aligned(2))) void (   \
+        *__vector_##name)(void) = name;
+	__asm(".refsym __crt0_init_bss");
+	__asm(".refsym __crt0_movedata");
+#else
+#define ISR_END(name)
+#endif
+
 /* Extern definitions */
 volatile char keycode_buffer[16] = {'\0'};
 volatile char buffer_tail = 0, buffer_head = 0;
@@ -260,8 +277,8 @@ int main()
 	AT2XT_FSM();
 }
 
-#pragma vector=PORT1_VECTOR
-__interrupt void PCOutKeyIn(void)
+ISR_BEGIN(PORT1_VECTOR)
+void port1(void)
 {
 	#ifdef __DEBUG__
 		counterc++;
@@ -345,7 +362,7 @@ __interrupt void PCOutKeyIn(void)
 					P1In_buffer = (short) ReverseBits((unsigned char) P1In_buffer);
 					keycode_buffer[buffer_tail] = (char) P1In_buffer;
 					buffer_tail = (++buffer_tail) % 16;
-					LPM3_EXIT;
+					// LPM3_EXIT;
 				}
 				P1In_buffer = 0x0000;
 				/* Clear the buffer in to prevent the previous value from influencing the
@@ -360,9 +377,10 @@ __interrupt void PCOutKeyIn(void)
 	}
 	P1IFG &= ~PORT1_CLK; //Clear the flag which caused the interrupt!
 }
+ISR_END(port1)
 
-#pragma vector=TIMERA0_VECTOR
-__interrupt void TimerTimedOut(void)
+ISR_BEGIN(TIMERA0_VECTOR)
+void timera0(void)
 {
 	#ifdef __DEBUG__
 		counterd++;
@@ -370,3 +388,4 @@ __interrupt void TimerTimedOut(void)
 	timeout = TRUE;
 	StopTimer();
 }
+ISR_END(timera0)

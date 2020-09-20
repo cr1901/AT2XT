@@ -4,6 +4,14 @@
 //Useful Macros
 #define TRUE 1
 #define FALSE 0
+
+#ifdef __clang__
+    #define __delay_cycles(n) delay_cycles(n)
+    inline void delay_cycles(unsigned long n) {
+    	for(unsigned long k = 0; k < n; k++);
+    }
+#endif
+
 #define PAUSE(_x) __delay_cycles(_x*2.1)
 
 #define BIT(_x) (char) 1 << _x
