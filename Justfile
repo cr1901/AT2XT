@@ -23,24 +23,24 @@ timer-extra:
 
 # Run clippy on AT2XT.
 clippy:
-  cargo clippy --target=msp430-none-elf -- {{CLIPPY_LINTS}}
+  cargo clippy -Zbuild-std=core --target=msp430-none-elf -- {{CLIPPY_LINTS}}
 
 # Run clippy on AT2XT- pedantic mode (many lints won't apply).
 clippy-pedantic:
-  cargo clippy --target=msp430-none-elf -- -W clippy::pedantic
+  cargo clippy -Zbuild-std=core --target=msp430-none-elf -- -W clippy::pedantic
 
 # Combine with: just clippy-restriction 2>&1 | grep https:// | tr -s " " | sort | uniq?
 # Run clippy on AT2XT- restriction mode (many lints won't apply).
 clippy-restriction:
-  cargo clippy --target=msp430-none-elf -- -W clippy::restriction
+  cargo clippy -Zbuild-std=core --target=msp430-none-elf -- -W clippy::restriction
 
 # Fix warnings in AT2XT.
 fix:
-  cargo fix --target=msp430-none-elf
+  cargo fix -Zbuild-std=core --target=msp430-none-elf
 
 # Fix warnings and attempt to apply clippy suggestions (nightly only).
 fix-clippy:
-  cargo fix -Z unstable-options --target=msp430-none-elf --clippy
+  cargo clippy --fix -Zunstable-options -Zbuild-std=core --target=msp430-none-elf
 
 # Format AT2XT source.
 fmt:
