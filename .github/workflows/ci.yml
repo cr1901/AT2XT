@@ -1,6 +1,9 @@
 on:
   push:
   pull_request:
+  schedule:
+    # Run every night to track nightly.
+    - cron: '0 22 * * *'
 
 name: CI
 
