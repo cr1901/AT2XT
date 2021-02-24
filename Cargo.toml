@@ -30,7 +30,9 @@ version = "0.1.2"
 version = "0.2.0"
 
 [dependencies.once_cell]
-version = "< 1.6.0"
+version = "1.6.0"
+git = "https://github.com/matklad/once_cell.git"
+rev = "da01f25"
 default_features = false
 
 [dependencies.bitflags]
