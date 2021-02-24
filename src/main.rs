@@ -271,7 +271,7 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
 
             Ok(clk_or_data_unset)
         })
-    };
+    }
 
     // The host cannot send data; the only communication it can do with the micro is pull
     // the CLK (reset) and DATA (shift register full) low.
