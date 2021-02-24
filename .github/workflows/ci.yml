@@ -22,5 +22,10 @@ jobs:
           override: true
           components: rust-src
       - uses: extractions/setup-just@v1
+      - name: Download personal copy of msp430-gcc toolchain
+        run: |
+          wget http://gopher.wdj-consulting.com:70/store/msp430-gcc-6.4.0.32_linux64.tar.bz2 -O /tmp/msp430-gcc.tar.b2
+          tar -xjf /tmp/msp430-gcc.tar.b2
+          echo "$PWD/msp430-gcc-6.4.0.32_linux64/bin" >> $GITHUB_PATH
       - name: Do build
         run: just ${{ matrix.TARGET }}
