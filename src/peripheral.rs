@@ -8,6 +8,18 @@ pub struct At2XtPeripherals {
     pub timer: msp430g2211::TIMER_A2,
 }
 
+impl AsRef<msp430g2211::PORT_1_2> for At2XtPeripherals {
+    fn as_ref(&self) -> &msp430g2211::PORT_1_2 {
+        &self.port
+    }
+}
+
+impl AsRef<msp430g2211::TIMER_A2> for At2XtPeripherals {
+    fn as_ref(&self) -> &msp430g2211::TIMER_A2 {
+        &self.timer
+    }
+}
+
 impl At2XtPeripherals {
     pub fn init(self, cs: &CriticalSection) -> Result<(), ()> {
         // We want to consume our Peripherals struct so interrupts
@@ -16,32 +28,10 @@ impl At2XtPeripherals {
         PERIPHERALS.borrow(cs).set(self).map_err(|_e| {})
     }
 
-    pub fn periph_ref<'a, T>(cs: &'a CriticalSection) -> Option<&'a T>
+    pub fn periph_ref<T>(cs: &CriticalSection) -> Option<&T>
     where
-        &'a T: private::Sealed,
         Self: AsRef<T>,
     {
         PERIPHERALS.borrow(cs).get().map(|p| p.as_ref())
-    }
-}
-
-mod private {
-    // Not sure if this is necessary, but keep around to restrict the types
-    // that periph_ref can return.
-    pub trait Sealed {}
-
-    impl Sealed for &msp430g2211::PORT_1_2 {}
-    impl Sealed for &msp430g2211::TIMER_A2 {}
-
-    impl AsRef<msp430g2211::PORT_1_2> for super::At2XtPeripherals {
-        fn as_ref(&self) -> &msp430g2211::PORT_1_2 {
-            &self.port
-        }
-    }
-
-    impl AsRef<msp430g2211::TIMER_A2> for super::At2XtPeripherals {
-        fn as_ref(&self) -> &msp430g2211::TIMER_A2 {
-            &self.timer
-        }
     }
 }
