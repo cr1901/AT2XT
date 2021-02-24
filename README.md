@@ -1,5 +1,5 @@
 # AT-to-XT Keyboard Protocol Converter
-[![Build Status](https://travis-ci.org/cr1901/AT2XT.svg?branch=master)](https://travis-ci.org/cr1901/AT2XT)
+[![Build Status](https://github.com/cr1901/AT2XT/actions/workflows/ci.yml/badge.svg)](https://github.com/cr1901/AT2XT/actions)
 [![Latest version](https://img.shields.io/github/tag/cr1901/AT2XT.svg)](https://GitHub.com/cr1901/AT2XT/tags/)
 [![GitHub license](https://img.shields.io/github/license/cr1901/AT2XT.svg)](https://github.com/cr1901/AT2XT/blob/master/LICENSE.md)
 [![Last commit](https://img.shields.io/github/last-commit/cr1901/AT2XT.svg)](https://GitHub.com/cr1901/AT2XT/commit/)
