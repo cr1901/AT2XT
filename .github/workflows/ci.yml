@@ -1,0 +1,25 @@
+on:
+  push:
+  pull_request:
+
+name: CI
+
+jobs:
+  ci-linux:
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental || false }}
+    strategy:
+      matrix:
+        rust: [nightly]
+        TARGET: [timer]
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - uses: extractions/setup-just@v1
+      - name: Do build
+        run: just ${{ matrix.TARGET }}
