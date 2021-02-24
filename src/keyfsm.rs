@@ -22,7 +22,7 @@ pub enum Cmd {
     WaitForKey,
     ClearBuffer, // If Reset Occurs.
     ToggleLed(LedMask),
-    SendXTKey(u8),
+    SendXtKey(u8),
 }
 
 impl Cmd {
@@ -113,11 +113,11 @@ impl Fsm {
 
         let next_cmd = match next_state {
             State::NotInKey | State::PossibleBreakCode => Ok(Cmd::WaitForKey),
-            State::SimpleKey(k) => keymap::to_xt(k).ok_or(()).map(|k| Cmd::SendXTKey(k)),
+            State::SimpleKey(k) => keymap::to_xt(k).ok_or(()).map(Cmd::SendXtKey),
             State::KnownBreakCode(b) => {
-                keymap::to_xt(b).ok_or(()).map(|b| Cmd::SendXTKey(b | 0x80))
+                keymap::to_xt(b).ok_or(()).map(|b| Cmd::SendXtKey(b | 0x80))
             }
-            State::UnmodifiedKey(u) => Ok(Cmd::SendXTKey(u)),
+            State::UnmodifiedKey(u) => Ok(Cmd::SendXtKey(u)),
             State::ToggleLedFirst(l) => match l {
                 Self::SCROLL => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::SCROLL)),
                 Self::NUM => Ok(Cmd::ToggleLed(self.led_mask ^ LedMask::NUM)),

@@ -175,7 +175,7 @@ fn main(cs: CriticalSection) -> ! {
                 toggle_leds(m).unwrap();
                 ProcReply::LedToggled(m)
             }
-            Cmd::SendXTKey(k) => {
+            Cmd::SendXtKey(k) => {
                 send_byte_to_pc(k).unwrap();
                 ProcReply::SentKey(k)
             }
