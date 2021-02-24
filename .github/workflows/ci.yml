@@ -20,6 +20,7 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.rust }}
           override: true
+          components: rust-src
       - uses: extractions/setup-just@v1
       - name: Do build
         run: just ${{ matrix.TARGET }}
