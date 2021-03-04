@@ -17,6 +17,7 @@ jobs:
         TARGET: [timer]
 
     steps:
+      # Rust Setup
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
@@ -25,10 +26,22 @@ jobs:
           override: true
           components: rust-src
       - uses: extractions/setup-just@v1
-      - name: Download personal copy of msp430-gcc toolchain
+      # GCC Setup- Taken mostly from https://github.com/hathach/tinyusb/blob/master/.github/workflows/build.yml
+      - name: Set toolchain URL (for cache)
+        run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
+      - uses: actions/cache@v2
+        id: cache-msp430
+        with:
+          path: ~/cache/
+          key: ${{ runner.os }}-${{ env.TOOLCHAIN_URL }}
+      - name: Download msp430-gcc toolchain
+        if: steps.cache-msp430.outputs.cache-hit != 'true'
         run: |
-          wget http://gopher.wdj-consulting.com:70/store/msp430-gcc-6.4.0.32_linux64.tar.bz2 -nv -O /tmp/msp430-gcc.tar.b2
-          tar -xjf /tmp/msp430-gcc.tar.b2
-          echo "$PWD/msp430-gcc-6.4.0.32_linux64/bin" >> $GITHUB_PATH
+          mkdir -p ~/cache/toolchain
+          wget $TOOLCHAIN_URL -nv -O toolchain.tar.bz2
+          tar -xjf toolchain.tar.bz2 -C ~/cache/toolchain
+      - name: Set toolchain path
+        run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+      # Build
       - name: Do build
         run: just ${{ matrix.TARGET }}
