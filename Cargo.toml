@@ -19,8 +19,6 @@ version = "0.2.4"
 
 [dependencies.msp430g2211]
 version = "0.2.1"
-git = "https://github.com/cr1901/msp430g2211"
-rev = "6f39636"
 features = ["rt"]
 
 [dependencies.msp430-atomic]
