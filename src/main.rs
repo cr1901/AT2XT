@@ -193,13 +193,13 @@ fn main(cs: CriticalSection) -> ! {
 
                 fn buffer_is_empty() -> bool {
                     mspint::free(|cs| {
-                       IN_BUFFER
-                           .borrow(cs)
-                           .try_borrow_mut()
-                           // Staying in idle state and busy-waiting is reasonable behavior for
-                           // now if we couldn't borrow the IN_BUFFER.
-                           .map_or(true, |b| b.is_empty())
-                   })
+                        IN_BUFFER
+                            .borrow(cs)
+                            .try_borrow_mut()
+                            // Staying in idle state and busy-waiting is reasonable behavior for
+                            // now if we couldn't borrow the IN_BUFFER.
+                            .map_or(true, |b| b.is_empty())
+                    })
                 }
 
                 let mut xt_reset: bool = false;
