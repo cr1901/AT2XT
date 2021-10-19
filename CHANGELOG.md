@@ -11,6 +11,72 @@ as optimizations, bugs, and code cleanup are pooled into minor releases.
 # AT2XT Firmware
 ## [Unreleased]
 
+## [4.1.0]
+Version [4.1.0] further improves the refactor of [4.0.0]. _All `unsafe` code
+has been removed as of this version!_ The binary still compiles to about ~2000
+bytes and ~50 bytes of RAM. In subsequent releases, I may reintroduce
+controlled `unsafe` to get size optimizations impossible under the assumptions
+of purely safe code.
+
+### Added
+- With permission, [Chuck Guzis](http://www.vcfed.org/forum/member.php?3458-Chuck(G))'s
+  original `XTATKEY` firmware implementation is provided in the
+  `legacy-src/XTATKEY` direction.
+- `#![deny(unsafe_code)]` lint is active.
+- The C code in `legacy-src` can now be built and linked with `clang`. I
+  have not tested the resulting binary, however; I use `clang` to compare
+  binary size with `msp430-elf-gcc` and `rustc`.
+- Github CI [support](https://github.com/cr1901/AT2XT/actions).
+
+### Fixed
+- Most `clippy` suggestions up to Rust `1.56` were applied. These include:
+  - Camel-case for enum variants.
+  - Remove redundant closures.
+  - Remove complex condition in while loop that tries to borrow `IN_BUFFER`.
+  - Remove redundant `CriticalSectionToken` borrows.
+
+  Having a non-empty `Result::Err` variant return from AT2XT functions will
+  be addressed later.
+
+### Changed
+- `KeyOut::put` uses the `count_ones` intrinsic for parity calculation. This
+  saves about 16 bytes. Although `reverse_bits` also exists as a method in
+  Rust as of `1.37.0`, the [bit_reverse] crate implementation is still leaner.
+- `At2XtPeripherals` was moved to its own `peripheral` module to facilitate
+  a safe abstraction boundary (hide the `OnceCell` which permits access
+  to peripherals via a `CriticalSectionToken`).
+- When possible, replace `match` statements on `Option`s/`Result`s with `ok_or`
+  and `map_or` respectively. This change is zero-cost.
+- Create a `PortWrite` trait in an attempt to abstract away writes to the I/O
+  ports.
+- Use `cargo`'s unstable `-Z build-std=core` [option](https://doc.rust-lang.org/cargo/reference/unstable.html#build-std)
+  is now used to build `libcore`.
+- Generate more build artifacts using `timer` and `timer-extra` `just` targets.
+- Until upstream support is added for the new `asm!` macro, use version `0.1.2`
+  of the [msp430_atomic] crate with the always-unstable `llvm_asm!` macro.
+- The README.md and `Justfile` has been brought up to date in light of the
+  other changes.
+
+### Removed
+- All `unsafe` code is gone from the AT2XT binary crate! This was due to a few
+  factors:
+  - I concluded that `enable_at_clk_int` cannot cause memory unsafety because
+    interrupts are _already_ disabled by the time you can call this function.
+    Spurious pin interrupts are undesireable, but should not cause memory
+    safety issues (data races) due to the various `Cells`. See commit 1fd2619.
+  - [msp430] version `0.2.2` provides a safe function to enable interrupts
+    by consuming a `CriticalSectionToken`, which ensures interrupts are already
+    disabled and cannot be re-enabled while the token is borrowed for
+    peripheral access. AFAIK, this functionality requires proc macros to
+    implement, which weren't really a thing when I first wrote this firmware
+    and the [msp430] crate was released.
+  - [msp430g2211] version `0.2.1` permits safe access to all bits of the
+    `TACCRx` timer count/capturer registers and most of the `Px` I/O port
+    registers.
+- Because `cargo` is now capable of building AT2XT, `xargo` is no longer used
+  to build libcore.
+- Travis CI support was removed as part of migrating to Github CI.
+
 ## [4.0.0]
 Version [4.0.0] is a refactor. The firmware fundamentally operates the same
 way as version [3.0.0]. In fact, based on a binary comparison, the firmware
@@ -439,7 +505,8 @@ should not be manufactured. A new design will follow shortly.
 [panic_msp430]: https://github.com/YuhanLiin/panic-msp430
 [compiler-builtins]: https://github.com/rust-lang-nursery/compiler-builtins
 
-[Unreleased]: https://github.com/cr1901/AT2XT/compare/v4.0.0...HEAD
+[Unreleased]: https://github.com/cr1901/AT2XT/compare/v4.1.0...HEAD
+[4.1.0]: https://github.com/cr1901/AT2XT/compare/v4.0.0...v4.1.0
 [4.0.0]: https://github.com/cr1901/AT2XT/compare/v3.0.0...v4.0.0
 [3.0.0]: https://github.com/cr1901/AT2XT/compare/v2.3.0...v3.0.0
 [2.3.0]: https://github.com/cr1901/AT2XT/compare/v2.2.0...v2.3.0
