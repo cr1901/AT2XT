@@ -59,7 +59,7 @@ fn PORT1(cs: CriticalSection) {
     let port = At2XtPeripherals::periph_ref(&cs).unwrap();
 
     if HOST_MODE.load() {
-        let mut keyout = KEY_OUT.borrow(&cs).get();
+        let mut keyout = KEY_OUT.borrow(cs).get();
 
         if let Some(k) = keyout.shift_out() {
             if k {
@@ -81,9 +81,9 @@ fn PORT1(cs: CriticalSection) {
             }
         }
 
-        KEY_OUT.borrow(&cs).set(keyout);
+        KEY_OUT.borrow(cs).set(keyout);
     } else {
-        let mut keyin = KEY_IN.borrow(&cs).get();
+        let mut keyin = KEY_IN.borrow(cs).get();
 
         // Are the buffer functions safe in nested interrupts? Is it possible to use tokens/manual
         // sync for nested interrupts while not giving up safety?
@@ -92,7 +92,7 @@ fn PORT1(cs: CriticalSection) {
             driver::at_inhibit(port); // Ask keyboard to not send anything while processing keycode.
 
             if let Some(k) = keyin.take() {
-                if let Ok(mut b) = IN_BUFFER.borrow(&cs).try_borrow_mut() {
+                if let Ok(mut b) = IN_BUFFER.borrow(cs).try_borrow_mut() {
                     // Dropping keys when the buffer is full is in line
                     // with what AT/XT hosts do. Saves 2 bytes on panic :)!
                     #[allow(clippy::let_underscore_must_use)]
@@ -107,7 +107,7 @@ fn PORT1(cs: CriticalSection) {
             driver::at_idle(port);
         }
 
-        KEY_IN.borrow(&cs).set(keyin);
+        KEY_IN.borrow(cs).set(keyin);
     }
 
     driver::clear_at_clk_int(port);
@@ -124,7 +124,7 @@ fn init(cs: CriticalSection) {
 
     p.SYSTEM_CLOCK
         .bcsctl1
-        .write(|w| w.xt2off().set_bit().rsel3().set_bit()); // XT2 off, Range Select 7.
+        .write(|w| w.xt2off().set_bit().rsel().bits(8)); // XT2 off, Range Select 7.
     p.SYSTEM_CLOCK.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4.
 
     p.TIMER_A2.taccr0.write(|w| w.taccr0().bits(0x0000));
@@ -140,7 +140,10 @@ fn init(cs: CriticalSection) {
 
     At2XtPeripherals::init(shared, &cs).unwrap();
 
-    mspint::enable_cs(cs);
+    #[allow(unsafe_code)]
+    unsafe {
+        mspint::enable();
+    }
 }
 
 #[entry]
@@ -165,7 +168,7 @@ fn main(cs: CriticalSection) -> ! {
                     // bring in dead formatting code! Use explicit
                     // if-let for now and handle errors by doing nothing.
 
-                    if let Ok(mut b) = IN_BUFFER.borrow(cs).try_borrow_mut() {
+                    if let Ok(mut b) = IN_BUFFER.borrow(*cs).try_borrow_mut() {
                         b.flush()
                     }
                 });
@@ -189,12 +192,12 @@ fn main(cs: CriticalSection) -> ! {
 
                         driver::is_unset(port, Pins::XT_SENSE)
                     })
-                };
+                }
 
                 fn buffer_is_empty() -> bool {
                     mspint::free(|cs| {
                         IN_BUFFER
-                            .borrow(cs)
+                            .borrow(*cs)
                             .try_borrow_mut()
                             // Staying in idle state and busy-waiting is reasonable behavior for
                             // now if we couldn't borrow the IN_BUFFER.
@@ -219,7 +222,7 @@ fn main(cs: CriticalSection) -> ! {
                 } else {
                     let mut bits_in = mspint::free(|cs| {
                         IN_BUFFER
-                            .borrow(cs)
+                            .borrow(*cs)
                             .try_borrow_mut()
                             .map_or(0, |mut b| b.take().unwrap_or(0))
                     });
@@ -324,14 +327,14 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     mspint::free(|cs| {
         let port = At2XtPeripherals::periph_ref(cs).ok_or(())?;
 
-        let mut key_out = KEY_OUT.borrow(cs).get();
+        let mut key_out = KEY_OUT.borrow(*cs).get();
 
         key_out.put(byte).unwrap();
 
         // Safe outside of critical section: As long as HOST_MODE is
         // not set, it's not possible for the interrupt
         // context to touch this variable.
-        KEY_OUT.borrow(cs).set(key_out);
+        KEY_OUT.borrow(*cs).set(key_out);
         driver::disable_at_clk_int(port);
         Ok(())
     })?;

@@ -5,27 +5,29 @@ authors = ["William D. Jones <thor0505@comcast.net>"]
 edition = "2018"
 
 [dependencies.bare-metal]
-version = "0.2.0"
+version = "1.0.0"
 
 [dependencies.msp430]
-version = "0.2.2"
+version = "0.3.0"
 
 [dependencies.bit_reverse]
 version = "0.1.7"
 default_features = false
 
 [dependencies.msp430-rt]
-version = "0.2.4"
+version = "0.3.0"
 
 [dependencies.msp430g2211]
-version = "0.2.1"
+version = "0.3.0"
 features = ["rt"]
 
 [dependencies.msp430-atomic]
-version = "0.1.2"
+git = "https://github.com/cr1901/msp430-atomic"
+branch = "new-asm"
+version = "0.1.3"
 
 [dependencies.panic-msp430]
-version = "0.2.0"
+version = "0.3.0"
 
 [dependencies.once_cell]
 version = "1.7.0"

@@ -25,13 +25,13 @@ impl At2XtPeripherals {
         // We want to consume our Peripherals struct so interrupts
         // and the main thread can access the peripherals; OnceCell
         // returns the data to you on error.
-        PERIPHERALS.borrow(cs).set(self).map_err(|_e| {})
+        PERIPHERALS.borrow(*cs).set(self).map_err(|_e| {})
     }
 
-    pub fn periph_ref<T>(cs: &CriticalSection) -> Option<&T>
+    pub fn periph_ref<'a, T>(cs: &'a CriticalSection) -> Option<&'a T>
     where
         Self: AsRef<T>,
     {
-        PERIPHERALS.borrow(cs).get().map(|p| p.as_ref())
+        PERIPHERALS.borrow(*cs).get().map(|p| p.as_ref())
     }
 }

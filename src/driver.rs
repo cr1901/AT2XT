@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use msp430g2211::generic::{Readable, Reg, Writable, R, W};
+use msp430g2211::generic::{Readable, Reg, Writable};
 use msp430g2211::port_1_2::*;
 
 bitflags! {
@@ -17,71 +17,106 @@ bitflags! {
     }
 }
 
-impl<T> From<&R<u8, T>> for Pins {
-    fn from(r: &R<u8, T>) -> Self {
+impl From<&p1in::R> for Pins {
+    fn from(r: &p1in::R) -> Self {
+        Pins::from_bits_truncate(r.bits())
+    }
+}
+
+impl From<&p1out::R> for Pins {
+    fn from(r: &p1out::R) -> Self {
+        Pins::from_bits_truncate(r.bits())
+    }
+}
+
+impl From<&p1dir::R> for Pins {
+    fn from(r: &p1dir::R) -> Self {
+        Pins::from_bits_truncate(r.bits())
+    }
+}
+
+impl From<&p1ifg::R> for Pins {
+    fn from(r: &p1ifg::R) -> Self {
+        Pins::from_bits_truncate(r.bits())
+    }
+}
+
+impl From<&p1ie::R> for Pins {
+    fn from(r: &p1ie::R) -> Self {
+        Pins::from_bits_truncate(r.bits())
+    }
+}
+
+impl From<&p1ies::R> for Pins {
+    fn from(r: &p1ies::R) -> Self {
         Pins::from_bits_truncate(r.bits())
     }
 }
 
 trait PortWrite {
-    fn bits(&mut self, bits: u8) -> &mut Self;
+    fn bits_w(&mut self, bits: u8) -> &mut Self;
 }
 
 impl PortWrite for p1in::W {
-    fn bits(&mut self, bits: u8) -> &mut Self {
+    fn bits_w(&mut self, bits: u8) -> &mut Self {
         self.p1in().bits(bits)
     }
 }
 
 impl PortWrite for p1out::W {
-    fn bits(&mut self, bits: u8) -> &mut Self {
+    fn bits_w(&mut self, bits: u8) -> &mut Self {
         self.p1out().bits(bits)
     }
 }
 
 impl PortWrite for p1dir::W {
-    fn bits(&mut self, bits: u8) -> &mut Self {
+    fn bits_w(&mut self, bits: u8) -> &mut Self {
         self.p1dir().bits(bits)
     }
 }
 
 impl PortWrite for p1ifg::W {
-    fn bits(&mut self, bits: u8) -> &mut Self {
+    fn bits_w(&mut self, bits: u8) -> &mut Self {
         self.p1ifg().bits(bits)
     }
 }
 
 impl PortWrite for p1ie::W {
-    fn bits(&mut self, bits: u8) -> &mut Self {
+    fn bits_w(&mut self, bits: u8) -> &mut Self {
         self.p1ie().bits(bits)
     }
 }
 
 impl PortWrite for p1ies::W {
-    fn bits(&mut self, bits: u8) -> &mut Self {
+    fn bits_w(&mut self, bits: u8) -> &mut Self {
         self.p1ies().bits(bits)
     }
 }
 
-fn set_port_reg<REG>(reg: &Reg<u8, REG>, pins: Pins)
+// &<REG as Readable>::Reader
+// <REG as Writable>::Writer
+
+fn set_port_reg<REG>(reg: &Reg<REG>, pins: Pins)
 where
-    Reg<u8, REG>: Readable + Writable,
-    W<u8, Reg<u8, REG>>: PortWrite,
+    <REG as Writable>::Writer: PortWrite,
+    REG: msp430g2211::generic::RegisterSpec + Readable + Writable,
+    Pins: for<'a> From<&'a <REG as Readable>::Reader>
 {
     reg.modify(|r, w| {
         let p = Pins::from(r) | pins;
-        PortWrite::bits(w, p.bits())
+        <<REG as Writable>::Writer as PortWrite>::bits_w(w, p.bits())
     });
 }
 
-fn clear_port_reg<REG>(reg: &Reg<u8, REG>, pins: Pins)
+fn clear_port_reg<REG>(reg: &Reg<REG>, pins: Pins)
 where
-    Reg<u8, REG>: Readable + Writable,
-    W<u8, Reg<u8, REG>>: PortWrite,
+    <REG as Writable>::Writer: PortWrite,
+    REG: msp430g2211::generic::RegisterSpec + Readable + Writable,
+    Pins: for<'a> From<&'a <REG as Readable>::Reader>,
 {
     reg.modify(|r, w| {
         let p = Pins::from(r) & !pins;
-        PortWrite::bits(w, p.bits())
+        <<REG as Writable>::Writer as PortWrite>::bits_w(w, p.bits())
     });
 }
 
