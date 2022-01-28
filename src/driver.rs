@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use msp430g2211::generic::{Readable, Reg, Writable};
+use msp430g2211::generic::{Readable, Reg, RegisterSpec, Writable};
 use msp430g2211::port_1_2::*;
 
 bitflags! {
@@ -17,89 +17,48 @@ bitflags! {
     }
 }
 
-impl From<&p1in::R> for Pins {
-    fn from(r: &p1in::R) -> Self {
-        Pins::from_bits_truncate(r.bits())
+macro_rules! from_impl_for_pins {
+    ($t:ty) => {
+        impl From<$t> for Pins {
+            fn from(r: $t) -> Self {
+                Pins::from_bits_truncate(r.bits())
+            }
+        }
     }
 }
 
-impl From<&p1out::R> for Pins {
-    fn from(r: &p1out::R) -> Self {
-        Pins::from_bits_truncate(r.bits())
-    }
-}
-
-impl From<&p1dir::R> for Pins {
-    fn from(r: &p1dir::R) -> Self {
-        Pins::from_bits_truncate(r.bits())
-    }
-}
-
-impl From<&p1ifg::R> for Pins {
-    fn from(r: &p1ifg::R) -> Self {
-        Pins::from_bits_truncate(r.bits())
-    }
-}
-
-impl From<&p1ie::R> for Pins {
-    fn from(r: &p1ie::R) -> Self {
-        Pins::from_bits_truncate(r.bits())
-    }
-}
-
-impl From<&p1ies::R> for Pins {
-    fn from(r: &p1ies::R) -> Self {
-        Pins::from_bits_truncate(r.bits())
-    }
-}
+from_impl_for_pins! { &p1in::R }
+from_impl_for_pins! { &p1out::R }
+from_impl_for_pins! { &p1dir::R }
+from_impl_for_pins! { &p1ifg::R }
+from_impl_for_pins! { &p1ie::R }
+from_impl_for_pins! { &p1ies::R }
 
 trait PortWrite {
     fn bits_w(&mut self, bits: u8) -> &mut Self;
 }
 
-impl PortWrite for p1in::W {
-    fn bits_w(&mut self, bits: u8) -> &mut Self {
-        self.p1in().bits(bits)
+macro_rules! impl_port_write {
+    ($t:ty, $f:ident) => {
+        impl PortWrite for $t {
+            fn bits_w(&mut self, bits: u8) -> &mut Self {
+                self.$f().bits(bits)
+            }
+        }
     }
 }
 
-impl PortWrite for p1out::W {
-    fn bits_w(&mut self, bits: u8) -> &mut Self {
-        self.p1out().bits(bits)
-    }
-}
-
-impl PortWrite for p1dir::W {
-    fn bits_w(&mut self, bits: u8) -> &mut Self {
-        self.p1dir().bits(bits)
-    }
-}
-
-impl PortWrite for p1ifg::W {
-    fn bits_w(&mut self, bits: u8) -> &mut Self {
-        self.p1ifg().bits(bits)
-    }
-}
-
-impl PortWrite for p1ie::W {
-    fn bits_w(&mut self, bits: u8) -> &mut Self {
-        self.p1ie().bits(bits)
-    }
-}
-
-impl PortWrite for p1ies::W {
-    fn bits_w(&mut self, bits: u8) -> &mut Self {
-        self.p1ies().bits(bits)
-    }
-}
-
-// &<REG as Readable>::Reader
-// <REG as Writable>::Writer
+impl_port_write! { p1in::W, p1in }
+impl_port_write! { p1out::W, p1out }
+impl_port_write! { p1dir::W, p1dir }
+impl_port_write! { p1ifg::W, p1ifg }
+impl_port_write! { p1ie::W, p1ie }
+impl_port_write! { p1ies::W, p1ies }
 
 fn set_port_reg<REG>(reg: &Reg<REG>, pins: Pins)
 where
     <REG as Writable>::Writer: PortWrite,
-    REG: msp430g2211::generic::RegisterSpec + Readable + Writable,
+    REG: RegisterSpec + Readable + Writable,
     Pins: for<'a> From<&'a <REG as Readable>::Reader>
 {
     reg.modify(|r, w| {
@@ -111,7 +70,7 @@ where
 fn clear_port_reg<REG>(reg: &Reg<REG>, pins: Pins)
 where
     <REG as Writable>::Writer: PortWrite,
-    REG: msp430g2211::generic::RegisterSpec + Readable + Writable,
+    REG: RegisterSpec + Readable + Writable,
     Pins: for<'a> From<&'a <REG as Readable>::Reader>,
 {
     reg.modify(|r, w| {
