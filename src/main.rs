@@ -139,17 +139,10 @@ fn init(cs: CriticalSection) {
     };
 
     At2XtPeripherals::init(shared, &cs).unwrap();
-
-    #[allow(unsafe_code)]
-    unsafe {
-        mspint::enable();
-    }
 }
 
-#[entry]
-fn main(cs: CriticalSection) -> ! {
-    init(cs);
-
+#[entry(interrupt_enable(pre_interrupt = init))]
+fn main() -> ! {
     send_byte_to_at_keyboard(Cmd::RESET).unwrap();
 
     let mut loop_cmd: Cmd;
