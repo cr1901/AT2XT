@@ -6,3 +6,9 @@ rustflags = [
     "-C", "link-arg=-lmul_none",
     "-C", "link-arg=-lgcc",
 ]
+
+[build]
+target = "msp430-none-elf"
+
+[unstable]
+build-std = ["core"]
