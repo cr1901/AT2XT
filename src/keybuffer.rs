@@ -17,17 +17,21 @@ impl KeycodeBuffer {
         }
     }
 
-    pub fn flush(&mut self) {
+    pub fn flush(&self) {
         self.tail.store(self.head.load(SeqCst), SeqCst);
     }
 
     fn is_empty(&self) -> bool {
-        (self.head.load(SeqCst) - self.tail.load(SeqCst)) == 0
+        self.head.load(SeqCst).wrapping_sub(self.tail.load(SeqCst)) == 0
+    }
+
+    fn is_full(&self) -> bool {
+        self.tail.load(SeqCst).wrapping_sub(self.head.load(SeqCst)) >= 15
     }
 
     pub fn put(&self, in_key: u16) -> Result<(), ()> {
         // if self.tail.wrapping_sub(self.head) >= 16 might be possible!
-        if (self.tail.load(SeqCst) - self.head.load(SeqCst)) >= 15 {
+        if self.is_full() {
             Err(())
         } else {
             /* The most space-efficient way to add/remove queue elements is to

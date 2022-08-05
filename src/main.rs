@@ -6,9 +6,9 @@
 extern crate panic_msp430;
 
 use bit_reverse::BitwiseReverse;
-use core::cell::{Cell, RefCell};
+use core::cell::Cell;
 use msp430::{critical_section as mspcs, interrupt::CriticalSection, interrupt::Mutex};
-use portable_atomic::{AtomicBool, Ordering};
+use portable_atomic::{AtomicBool, Ordering::SeqCst};
 use msp430_rt::entry;
 use msp430g2211::{interrupt, Peripherals};
 
@@ -35,13 +35,13 @@ static TIMEOUT: AtomicBool = AtomicBool::new(false);
 static HOST_MODE: AtomicBool = AtomicBool::new(false);
 static DEVICE_ACK: AtomicBool = AtomicBool::new(false);
 
-static IN_BUFFER: Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
+static IN_BUFFER: KeycodeBuffer = KeycodeBuffer::new();
 static KEY_IN: Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
 static KEY_OUT: Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
 
 #[interrupt]
 fn TIMERA0(cs: CriticalSection) {
-    TIMEOUT.store(true, Ordering::SeqCst);
+    TIMEOUT.store(true, SeqCst);
 
     // Use unwrap b/c within interrupt handlers, if we can't get access to
     // peripherals right away, there's no point in continuing.
@@ -57,7 +57,7 @@ fn TIMERA0(cs: CriticalSection) {
 fn PORT1(cs: CriticalSection) {
     let port = At2XtPeripherals::periph_ref(&cs).unwrap();
 
-    if HOST_MODE.load(Ordering::SeqCst) {
+    if HOST_MODE.load(SeqCst) {
         let mut keyout = KEY_OUT.borrow(cs).get();
 
         if let Some(k) = keyout.shift_out() {
@@ -75,7 +75,7 @@ fn PORT1(cs: CriticalSection) {
             // TODO: Is it possible to get a spurious clock interrupt and
             // thus skip this logic?
             if driver::is_unset(port, Pins::AT_DATA) {
-                DEVICE_ACK.store(true, Ordering::SeqCst);
+                DEVICE_ACK.store(true, SeqCst);
                 keyout.clear();
             }
         }
@@ -91,14 +91,10 @@ fn PORT1(cs: CriticalSection) {
             driver::at_inhibit(port); // Ask keyboard to not send anything while processing keycode.
 
             if let Some(k) = keyin.take() {
-                if let Ok(mut b) = IN_BUFFER.borrow(cs).try_borrow_mut() {
-                    // Dropping keys when the buffer is full is in line
-                    // with what AT/XT hosts do. Saves 2 bytes on panic :)!
-                    #[allow(clippy::let_underscore_must_use)]
-                    {
-                        let _ = b.put(k);
-                    }
-                }
+                // Dropping keys when the buffer is full is in line
+                // with what AT/XT hosts do. Saves 2 bytes on panic :)!
+                #[allow(clippy::let_underscore_must_use)]
+                let _ = IN_BUFFER.put(k);
             }
 
             keyin.clear();
@@ -154,16 +150,7 @@ fn main() -> ! {
 
         loop_reply = match loop_cmd {
             Cmd::ClearBuffer => {
-                mspcs::with(|cs| {
-                    // XXX: IN_BUFFER.borrow(cs).borrow_mut() and
-                    // IN_BUFFER.borrow(cs).try_borrow_mut().unwrap()
-                    // bring in dead formatting code! Use explicit
-                    // if-let for now and handle errors by doing nothing.
-
-                    if let Ok(mut b) = IN_BUFFER.borrow(cs).try_borrow_mut() {
-                        b.flush()
-                    }
-                });
+                IN_BUFFER.flush();
                 ProcReply::ClearedBuffer
             }
             Cmd::ToggleLed(m) => {
@@ -190,14 +177,8 @@ fn main() -> ! {
                 let mut bits_in: u16 = 0;
 
                 loop {
-                    if let Some(b_in) = mspcs::with(|cs| {
-                        IN_BUFFER
-                            .borrow(cs)
-                            .try_borrow_mut()
-                            // Staying in idle state and busy-waiting is reasonable behavior for
-                            // now if we couldn't borrow the IN_BUFFER.
-                            .map_or(None, |b| b.take())
-                    }) {
+                    if let Some(b_in) = IN_BUFFER.take()
+                    {
                         bits_in = b_in;
                         break;
                     }
@@ -349,14 +330,14 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
         driver::clear_at_clk_int(port);
 
         driver::enable_at_clk_int(port);
-        HOST_MODE.store(true, Ordering::SeqCst);
-        DEVICE_ACK.store(false, Ordering::SeqCst);
+        HOST_MODE.store(true, SeqCst);
+        DEVICE_ACK.store(false, SeqCst);
         Ok(())
     })?;
 
-    while !DEVICE_ACK.load(Ordering::SeqCst) {}
+    while !DEVICE_ACK.load(SeqCst) {}
 
-    HOST_MODE.store(false, Ordering::SeqCst);
+    HOST_MODE.store(false, SeqCst);
 
     Ok(())
 }
@@ -370,7 +351,7 @@ fn toggle_leds(mask: LedMask) -> Result<(), ()> {
 
 fn delay(time: u16) -> Result<(), ()> {
     start_timer(time)?;
-    while !TIMEOUT.load(Ordering::SeqCst) {}
+    while !TIMEOUT.load(SeqCst) {}
 
     Ok(())
 }
@@ -379,7 +360,7 @@ fn start_timer(time: u16) -> Result<(), ()> {
     mspcs::with(|cs| {
         let timer: &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
-        TIMEOUT.store(false, Ordering::SeqCst);
+        TIMEOUT.store(false, SeqCst);
         timer.taccr0.write(|w| w.taccr0().bits(time));
         Ok(())
     })
