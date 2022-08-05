@@ -1,39 +1,42 @@
+use portable_atomic::{AtomicU8, AtomicU16, Ordering::SeqCst};
+
 pub struct KeycodeBuffer {
-    head: u8,
-    tail: u8,
-    contents: [u16; 16],
+    head: AtomicU8,
+    tail: AtomicU8,
+    contents: [AtomicU16; 16],
 }
 
 impl KeycodeBuffer {
     pub const fn new() -> KeycodeBuffer {
+        const ZERO_ATOMIC_U16: AtomicU16 = AtomicU16::new(0);
+
         KeycodeBuffer {
-            head: 0,
-            tail: 0,
-            contents: [0; 16],
+            head: AtomicU8::new(0),
+            tail: AtomicU8::new(0),
+            contents: [ZERO_ATOMIC_U16; 16],
         }
     }
 
     pub fn flush(&mut self) {
-        self.tail = 0;
-        self.head = 0;
+        self.tail.store(self.head.load(SeqCst), SeqCst);
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.head.wrapping_sub(self.tail) == 0
+    fn is_empty(&self) -> bool {
+        (self.head.load(SeqCst) - self.tail.load(SeqCst)) == 0
     }
 
-    pub fn put(&mut self, in_key: u16) -> Result<(), ()> {
+    pub fn put(&self, in_key: u16) -> Result<(), ()> {
         // if self.tail.wrapping_sub(self.head) >= 16 might be possible!
-        if self.tail.wrapping_sub(self.head) >= 15 {
+        if (self.tail.load(SeqCst) - self.head.load(SeqCst)) >= 15 {
             Err(())
         } else {
             /* The most space-efficient way to add/remove queue elements is to
             force the array access to be within bounds by ignoring the top bits
             (equivalent to "% power_of_two"). This will optimize out the bounds
             check. */
-            if let Some(buf_ref) = self.contents.get_mut(usize::from(self.tail % 16)) {
-                *buf_ref = in_key;
-                self.tail = self.tail.wrapping_add(1);
+            if let Some(buf_ref) = self.contents.get(usize::from(self.tail.load(SeqCst) % 16)) {
+                buf_ref.store(in_key, SeqCst);
+                self.tail.fetch_add(1, SeqCst);
                 Ok(())
             } else {
                 Err(())
@@ -41,18 +44,18 @@ impl KeycodeBuffer {
         }
     }
 
-    pub fn take(&mut self) -> Option<u16> {
+    pub fn take(&self) -> Option<u16> {
         if self.is_empty() {
             None
         } else {
             // Same logic applies as with tail.
-            let out_key = self.contents.get(usize::from(self.head % 16));
+            let out_key = self.contents.get(usize::from(self.head.load(SeqCst) % 16));
 
             if out_key.is_some() {
-                self.head = self.head.wrapping_add(1);
+                self.head.fetch_add(1, SeqCst);
             }
 
-            out_key.copied()
+            out_key.map(|k| k.load(SeqCst))
         }
     }
 }
