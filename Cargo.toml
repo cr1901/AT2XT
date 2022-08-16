@@ -21,8 +21,8 @@ version = "0.3.1"
 version = "0.3.0"
 features = ["rt"]
 
-[dependencies.msp430-atomic]
-version = "0.1.4"
+[dependencies.portable-atomic]
+version = "0.3.13"
 
 [dependencies.panic-msp430]
 version = "0.3.0"

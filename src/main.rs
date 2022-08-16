@@ -9,7 +9,7 @@ use bare_metal::{CriticalSection, Mutex};
 use bit_reverse::BitwiseReverse;
 use core::cell::{Cell, RefCell};
 use msp430::interrupt as mspint;
-use msp430_atomic::AtomicBool;
+use portable_atomic::{AtomicBool, Ordering};
 use msp430_rt::entry;
 use msp430g2211::{interrupt, Peripherals};
 
@@ -42,7 +42,7 @@ static KEY_OUT: Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
 
 #[interrupt]
 fn TIMERA0(cs: CriticalSection) {
-    TIMEOUT.store(true);
+    TIMEOUT.store(true, Ordering::SeqCst);
 
     // Use unwrap b/c within interrupt handlers, if we can't get access to
     // peripherals right away, there's no point in continuing.
@@ -58,7 +58,7 @@ fn TIMERA0(cs: CriticalSection) {
 fn PORT1(cs: CriticalSection) {
     let port = At2XtPeripherals::periph_ref(&cs).unwrap();
 
-    if HOST_MODE.load() {
+    if HOST_MODE.load(Ordering::SeqCst) {
         let mut keyout = KEY_OUT.borrow(cs).get();
 
         if let Some(k) = keyout.shift_out() {
@@ -76,7 +76,7 @@ fn PORT1(cs: CriticalSection) {
             // TODO: Is it possible to get a spurious clock interrupt and
             // thus skip this logic?
             if driver::is_unset(port, Pins::AT_DATA) {
-                DEVICE_ACK.store(true);
+                DEVICE_ACK.store(true, Ordering::SeqCst);
                 keyout.clear();
             }
         }
@@ -355,14 +355,14 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
         driver::clear_at_clk_int(port);
 
         driver::enable_at_clk_int(port);
-        HOST_MODE.store(true);
-        DEVICE_ACK.store(false);
+        HOST_MODE.store(true, Ordering::SeqCst);
+        DEVICE_ACK.store(false, Ordering::SeqCst);
         Ok(())
     })?;
 
-    while !DEVICE_ACK.load() {}
+    while !DEVICE_ACK.load(Ordering::SeqCst) {}
 
-    HOST_MODE.store(false);
+    HOST_MODE.store(false, Ordering::SeqCst);
 
     Ok(())
 }
@@ -376,7 +376,7 @@ fn toggle_leds(mask: LedMask) -> Result<(), ()> {
 
 fn delay(time: u16) -> Result<(), ()> {
     start_timer(time)?;
-    while !TIMEOUT.load() {}
+    while !TIMEOUT.load(Ordering::SeqCst) {}
 
     Ok(())
 }
@@ -385,7 +385,7 @@ fn start_timer(time: u16) -> Result<(), ()> {
     mspint::free(|cs| {
         let timer: &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref(cs).ok_or(())?;
 
-        TIMEOUT.store(false);
+        TIMEOUT.store(false, Ordering::SeqCst);
         timer.taccr0.write(|w| w.taccr0().bits(time));
         Ok(())
     })
