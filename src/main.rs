@@ -7,7 +7,7 @@ extern crate panic_msp430;
 
 use bit_reverse::BitwiseReverse;
 use core::cell::{Cell, RefCell};
-use msp430::{interrupt as mspint, interrupt::CriticalSection, interrupt::Mutex};
+use msp430::{critical_section as mspcs, interrupt::CriticalSection, interrupt::Mutex};
 use portable_atomic::{AtomicBool, Ordering};
 use msp430_rt::entry;
 use msp430g2211::{interrupt, Peripherals};
@@ -154,13 +154,13 @@ fn main() -> ! {
 
         loop_reply = match loop_cmd {
             Cmd::ClearBuffer => {
-                mspint::free(|cs| {
+                mspcs::with(|cs| {
                     // XXX: IN_BUFFER.borrow(cs).borrow_mut() and
                     // IN_BUFFER.borrow(cs).try_borrow_mut().unwrap()
                     // bring in dead formatting code! Use explicit
                     // if-let for now and handle errors by doing nothing.
 
-                    if let Ok(mut b) = IN_BUFFER.borrow(*cs).try_borrow_mut() {
+                    if let Ok(mut b) = IN_BUFFER.borrow(cs).try_borrow_mut() {
                         b.flush()
                     }
                 });
@@ -179,17 +179,17 @@ fn main() -> ! {
                 // the keyboard to send data to the micro at the same time. To keep control flow simple,
                 // the micro will only respond to host PC acknowledge requests if its idle.
                 fn reset_requested() -> bool {
-                    mspint::free(|cs| {
-                        let port = At2XtPeripherals::periph_ref(cs).unwrap();
+                    mspcs::with(|cs| {
+                        let port = At2XtPeripherals::periph_ref(&cs).unwrap();
 
                         driver::is_unset(port, Pins::XT_SENSE)
                     })
                 }
 
                 fn buffer_is_empty() -> bool {
-                    mspint::free(|cs| {
+                    mspcs::with(|cs| {
                         IN_BUFFER
-                            .borrow(*cs)
+                            .borrow(cs)
                             .try_borrow_mut()
                             // Staying in idle state and busy-waiting is reasonable behavior for
                             // now if we couldn't borrow the IN_BUFFER.
@@ -212,9 +212,9 @@ fn main() -> ! {
                 if xt_reset {
                     ProcReply::KeyboardReset
                 } else {
-                    let mut bits_in = mspint::free(|cs| {
+                    let mut bits_in = mspcs::with(|cs| {
                         IN_BUFFER
-                            .borrow(*cs)
+                            .borrow(cs)
                             .try_borrow_mut()
                             .map_or(0, |mut b| b.take().unwrap_or(0))
                     });
@@ -232,8 +232,8 @@ fn main() -> ! {
 }
 
 pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
-    mspint::free(|cs| {
-        let port = At2XtPeripherals::periph_ref(cs).ok_or(())?;
+    mspcs::with(|cs| {
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         if bit == 1 {
             driver::set(port, Pins::XT_DATA);
@@ -248,8 +248,8 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
 
     delay_us!(55)?;
 
-    mspint::free(|cs| {
-        let port = At2XtPeripherals::periph_ref(cs).ok_or(())?;
+    mspcs::with(|cs| {
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         driver::set(port, Pins::XT_CLK);
         Ok(())
@@ -260,8 +260,8 @@ pub fn send_xt_bit(bit: u8) -> Result<(), ()> {
 
 pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
     fn wait_for_host() -> Result<bool, ()> {
-        mspint::free(|cs| {
-            let port = At2XtPeripherals::periph_ref(cs).ok_or(())?;
+        mspcs::with(|cs| {
+            let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
             let clk_or_data_unset =
                 driver::is_unset(port, Pins::XT_CLK) || driver::is_unset(port, Pins::XT_DATA);
@@ -287,8 +287,8 @@ pub fn send_byte_to_pc(mut byte: u8) -> Result<(), ()> {
         byte >>= 1;
     }
 
-    mspint::free(|cs| {
-        let port = At2XtPeripherals::periph_ref(cs).ok_or(())?;
+    mspcs::with(|cs| {
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         driver::xt_in(port);
         Ok(())
@@ -303,8 +303,8 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
     // or from the interrupted bit? Right now, we don't flush KeyIn, so
     // we do it from the interrupted bit. This seems to work fine.
     fn wait_for_at_keyboard() -> Result<bool, ()> {
-        mspint::free(|cs| {
-            let port = At2XtPeripherals::periph_ref(cs).ok_or(())?;
+        mspcs::with(|cs| {
+            let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
             let unset = driver::is_unset(port, Pins::AT_CLK);
 
@@ -316,17 +316,17 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
         })
     }
 
-    mspint::free(|cs| {
-        let port = At2XtPeripherals::periph_ref(cs).ok_or(())?;
+    mspcs::with(|cs| {
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
-        let mut key_out = KEY_OUT.borrow(*cs).get();
+        let mut key_out = KEY_OUT.borrow(cs).get();
 
         key_out.put(byte).unwrap();
 
         // Safe outside of critical section: As long as HOST_MODE is
         // not set, it's not possible for the interrupt
         // context to touch this variable.
-        KEY_OUT.borrow(*cs).set(key_out);
+        KEY_OUT.borrow(cs).set(key_out);
         driver::disable_at_clk_int(port);
         Ok(())
     })?;
@@ -337,8 +337,8 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
 
     delay_us!(100)?;
 
-    mspint::free(|cs| {
-        let port = At2XtPeripherals::periph_ref(cs).ok_or(())?;
+    mspcs::with(|cs| {
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         driver::unset(port, Pins::AT_DATA);
         Ok(())
@@ -346,8 +346,8 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
 
     delay_us!(33)?;
 
-    mspint::free(|cs| {
-        let port = At2XtPeripherals::periph_ref(cs).ok_or(())?;
+    mspcs::with(|cs| {
+        let port = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         driver::set(port, Pins::AT_CLK);
         driver::mk_in(port, Pins::AT_CLK);
@@ -381,8 +381,8 @@ fn delay(time: u16) -> Result<(), ()> {
 }
 
 fn start_timer(time: u16) -> Result<(), ()> {
-    mspint::free(|cs| {
-        let timer: &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref(cs).ok_or(())?;
+    mspcs::with(|cs| {
+        let timer: &msp430g2211::TIMER_A2 = At2XtPeripherals::periph_ref(&cs).ok_or(())?;
 
         TIMEOUT.store(false, Ordering::SeqCst);
         timer.taccr0.write(|w| w.taccr0().bits(time));
