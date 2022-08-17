@@ -21,17 +21,17 @@ impl AsRef<msp430g2211::TIMER_A2> for At2XtPeripherals {
 }
 
 impl At2XtPeripherals {
-    pub fn init(self, cs: &CriticalSection) -> Result<(), ()> {
+    pub fn init<'a>(self, cs: CriticalSection<'a>) -> Result<(), ()> {
         // We want to consume our Peripherals struct so interrupts
         // and the main thread can access the peripherals; OnceCell
         // returns the data to you on error.
-        PERIPHERALS.borrow(*cs).set(self).map_err(|_e| {})
+        PERIPHERALS.borrow(cs).set(self).map_err(|_e| {})
     }
 
-    pub fn periph_ref<'a, T>(cs: &'a CriticalSection) -> Option<&'a T>
+    pub fn periph_ref<'a, T>(cs: CriticalSection<'a>) -> Option<&'a T>
     where
         Self: AsRef<T>,
     {
-        PERIPHERALS.borrow(*cs).get().map(|p| p.as_ref())
+        PERIPHERALS.borrow(cs).get().map(|p| p.as_ref())
     }
 }
