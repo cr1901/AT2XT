@@ -186,45 +186,32 @@ fn main() -> ! {
                     })
                 }
 
-                fn buffer_is_empty() -> bool {
+                fn attempt_take() -> Option<u16> {
                     mspcs::with(|cs| {
                         IN_BUFFER
                             .borrow(cs)
                             .try_borrow_mut()
                             // Staying in idle state and busy-waiting is reasonable behavior for
                             // now if we couldn't borrow the IN_BUFFER.
-                            .map_or(true, |b| b.is_empty())
+                            .map_or(None, |mut b| b.take())
                     })
                 }
 
-                let mut xt_reset: bool = false;
-
-                while buffer_is_empty() {
+                loop {
+                    if let Some(b_in) = attempt_take()
+                    {
+                        let mut bits_in = b_in;
+                        bits_in &= !(0x4000 + 0x0001); // Mask out start/stop bit.
+                        bits_in >>= 2; // Remove stop bit and parity bit (FIXME: Check parity).
+                        break ProcReply::GrabbedKey((bits_in as u8).swap_bits());
+                    }
+                    
                     // If host computer wants to reset
                     if reset_requested() {
                         send_byte_to_at_keyboard(Cmd::RESET).unwrap();
                         send_byte_to_pc(Cmd::SELF_TEST_PASSED).unwrap();
-                        xt_reset = true;
-                        break;
+                        break ProcReply::KeyboardReset;
                     }
-                }
-
-                if xt_reset {
-                    ProcReply::KeyboardReset
-                } else {
-                    let mut bits_in = mspcs::with(|cs| {
-                        IN_BUFFER
-                            .borrow(cs)
-                            .try_borrow_mut()
-                            .map_or(0, |mut b| b.take().unwrap_or(0))
-                    });
-
-                    bits_in &= !(0x4000 + 0x0001); // Mask out start/stop bit.
-                    bits_in >>= 2; // Remove stop bit and parity bit (FIXME: Check parity).
-
-                    // Truncate is in fact what I want here, so allow lint.
-                    #[allow(clippy::as_conversions)]
-                    ProcReply::GrabbedKey((bits_in as u8).swap_bits())
                 }
             }
         }
