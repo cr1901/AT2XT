@@ -1,3 +1,5 @@
+set dotenv-load
+
 MODE := "release"
 CFLAGS := "--release -Zbuild-std=core --target=msp430-none-elf"
 TARGET := "target/msp430-none-elf/" + MODE + "/at2xt"
@@ -14,7 +16,7 @@ timer:
 
 # Build AT2XT and extra artifacts.
 timer-extra:
-    cargo rustc {{CFLAGS}} -- --emit=obj={{TARGET}}.o,llvm-ir={{TARGET}}.ll
+    cargo rustc {{CFLAGS}} -- --emit=obj={{TARGET}}.o,llvm-ir={{TARGET}}.ll,asm={{TARGET}}.s
     msp430-elf-objdump -Cd {{TARGET}} > {{TARGET}}.lst
     msp430-elf-readelf -a --wide {{TARGET}} > {{TARGET}}.sym
     msp430-elf-objdump -Cd {{TARGET}}.o > {{TARGET}}.o.lst
