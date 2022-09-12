@@ -4,28 +4,29 @@ version = "4.1.0"
 authors = ["William D. Jones <thor0505@comcast.net>"]
 edition = "2018"
 
-[dependencies.bare-metal]
+[dependencies.critical-section]
 version = "1.0.0"
 
 [dependencies.msp430]
-version = "0.3.0"
+version = "0.4.0"
+features = ["critical-section-single-core"]
 
 [dependencies.bit_reverse]
 version = "0.1.7"
 default_features = false
 
 [dependencies.msp430-rt]
-version = "0.3.1"
+version = "0.4.0"
 
 [dependencies.msp430g2211]
-version = "0.3.0"
-features = ["rt"]
+version = "0.4.0"
+features = ["critical-section", "rt"]
 
 [dependencies.portable-atomic]
 version = "0.3.13"
 
 [dependencies.panic-msp430]
-version = "0.3.0"
+version = "0.4.0"
 
 [dependencies.once_cell]
 version = "1.7.0"

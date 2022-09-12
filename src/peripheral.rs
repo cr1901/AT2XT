@@ -1,4 +1,4 @@
-use bare_metal::{CriticalSection, Mutex};
+use msp430::interrupt::{CriticalSection, Mutex};
 use once_cell::unsync::OnceCell;
 
 static PERIPHERALS: Mutex<OnceCell<At2XtPeripherals>> = Mutex::new(OnceCell::new());

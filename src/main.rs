@@ -5,10 +5,9 @@
 
 extern crate panic_msp430;
 
-use bare_metal::{CriticalSection, Mutex};
 use bit_reverse::BitwiseReverse;
 use core::cell::{Cell, RefCell};
-use msp430::interrupt as mspint;
+use msp430::{interrupt as mspint, interrupt::CriticalSection, interrupt::Mutex};
 use portable_atomic::{AtomicBool, Ordering};
 use msp430_rt::entry;
 use msp430g2211::{interrupt, Peripherals};
