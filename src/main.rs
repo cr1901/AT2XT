@@ -321,7 +321,7 @@ fn send_byte_to_at_keyboard(byte: u8) -> Result<(), ()> {
 
         let mut key_out = KEY_OUT.borrow(cs).get();
 
-        key_out.put(byte).unwrap();
+        key_out.put(byte)?;
 
         // Safe outside of critical section: As long as HOST_MODE is
         // not set, it's not possible for the interrupt
