@@ -5,11 +5,12 @@ authors = ["William D. Jones <thor0505@comcast.net>"]
 edition = "2018"
 
 [dependencies.critical-section]
-version = "1.0.0"
+git = "https://github.com/cr1901/msp430-cs"
+version = "1.1.0"
+branch = "msp430-cs"
 
 [dependencies.msp430]
 version = "0.4.0"
-features = ["critical-section-single-core"]
 
 [dependencies.bit_reverse]
 version = "0.1.7"
@@ -53,3 +54,6 @@ lto = "fat"
 codegen-units = 1
 opt-level = "s"
 lto = "fat"
+
+[patch.crates-io]
+critical-section = { git = "https://github.com/cr1901/msp430-cs", version = "1.1.0", branch = "msp430-cs" }
