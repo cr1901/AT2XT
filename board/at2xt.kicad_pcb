@@ -794,7 +794,7 @@
       (effects (font (size 1 1) (thickness 0.15)))
       (tstamp 2a67f296-5562-4729-bf6c-7e58beeec71a)
     )
-    (fp_text value "MCP1700x-330xxTT" (at 0.3 3.5 90) (layer "F.Fab")
+    (fp_text value "MCP1700x-330xxMB" (at 0.3 3.5 90) (layer "F.Fab")
       (effects (font (size 1 1) (thickness 0.15)))
       (tstamp 7365a08c-233b-45bd-b823-2666abf72060)
     )
