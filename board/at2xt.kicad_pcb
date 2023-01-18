@@ -848,7 +848,7 @@
     (property "MFR" "Kyocera AVX")
     (property "MPN" "0603YC104KAT2A")
     (property "OC_DIGIKEY" "478-1239-2-ND")
-    (property "OC_MOUSER" "581-06035C104JAT2A")
+    (property "OC_MOUSER" "581-06035C104KAT2A")
     (property "Sheetfile" "C:/msys64/home/William/Projects/legacy/AT2XT/board/at2xt.sch")
     (property "Sheetname" "")
     (property "URL_DIGIKEY" "https://www.digikey.com/en/products/detail/kyocera-avx/0603YC102KAT2A/1600482")

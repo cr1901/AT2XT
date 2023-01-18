@@ -1903,7 +1903,7 @@
     (property "OC_DIGIKEY" "478-1239-2-ND" (id 6) (at 105.41 96.52 0)
       (effects (font (size 1.27 1.27)) hide)
     )
-    (property "OC_MOUSER" "581-06035C104JAT2A" (id 7) (at 105.41 96.52 0)
+    (property "OC_MOUSER" "581-06035C104KAT2A" (id 7) (at 105.41 96.52 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "URL_DIGIKEY" "https://www.digikey.com/en/products/detail/kyocera-avx/0603YC102KAT2A/1600482" (id 8) (at 105.41 96.52 0)
