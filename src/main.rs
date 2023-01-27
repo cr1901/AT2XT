@@ -126,13 +126,26 @@ fn init(cs: CriticalSection) {
 
     // We want a nominally 1.6MHz clock (to get an easily-divisible timer of
     // 100kHz). Higher frequencies are fine, but even a bit lower than 1.6MHz
-    // runs into timing problems servicing interrupts IME. 1.35^2*1.08 is
-    // closer to 1.70MHz; this is some breathing room because the 1MHz
-    // calibration value can vary up to 3% according to the MSP430G2211
-    // datasheet.
+    // runs into timing problems servicing interrupts IME.
+    //
+    // According to the MSP430G2211 datasheet:
+    // * Every increment of the bottom 4 bits of BCSCTL1 (RSEL) increments the
+    //   clock frequency by 1.35.
+    // * Every increment of the top 3 bits of DCOCTL (DSO) increments the clock
+    //   frequency by 1.08.
+    // * The bottom 5 bits of DCOCTL (MOD) fine-tunes the clock frequency
+    //   between frequency F and frequency F * 1.08 (except for DSO == 7, in
+    //   which case MOD has no effect).
+    //
+    // For this application, we leave MOD alone, assume RSEL is < 14 (safe for
+    // properly calibrated chips), and boost the freq from the calibrated 1MHz
+    // value by 1.35^2*1.08. This is closer to 1.70MHz; we add some breathing
+    // room because the 1MHz calibration value can vary up to 3% according to
+    // the MSP430G2211 datasheet.
     p.SYSTEM_CLOCK
         .bcsctl1
-        .write(|w| w.bcsctl1().bits(calcb1 + 2)); // XT2 off, Multiply freq by 1.35^2
+        .write(|w| w.bcsctl1().bits(calcb1 + 2)); // XT2 off, Multiply freq by 1.35^2.
+        // Assumes bottom 4 bits < 14, will spill into DIVA bits if violated.
     p.SYSTEM_CLOCK.dcoctl.write(|w| {
         w.dcoctl().bits(if caldco >= 32 {
             caldco - 32 // Divide by 1.08 if DCO bits nonzero.

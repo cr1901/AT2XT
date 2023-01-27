@@ -11,6 +11,57 @@ as optimizations, bugs, and code cleanup are pooled into minor releases.
 # AT2XT Firmware
 ## [Unreleased]
 
+## [4.2.0]
+Version [4.2.0] is a checkpoint release before a number of useful branches are
+merged (including a new PCB!).
+
+### Added
+- Add `rust-toolchain.toml` to automatically choose the nightly compiler and
+  download the compiler source (required for `-Zbuild-std` to work) when
+  using a `rustc` from [`rustup`](https://rustup.rs/).
+- Add `[build]` and `[unstable]` sections to `.cargo/config`, so
+  `cargo build --release` alone works.
+- Emit assembly file(s) in `Justfile` `timer-extra` target.
+- Explicitly allow `Justfile` to utilized `.env` files via `set dotenv-load`.
+
+### Fixed
+- Removed a redundant critical section in `IN_BUFFER` management loop to save
+  ~30 bytes or so.
+- Althought used soundly in AT2XT, `enable_cs` is in general [unsound](https://github.com/rust-embedded/bare-metal/issues/42)
+  because as of [`v1.0.0`][bm-v1.0.0], the [bare-metal] `CriticalSection` is
+  `Copy`/`Clone`. To solve this, leverage the new `interrupt_enable` argument
+  to the [msp430-rt] `entry` attribute to safely enable interrupts.
+- Fix Github CI [API limits](https://github.com/extractions/setup-just/issues/9)
+  in [`setup-just`](https://github.com/extractions/setup-just) step.
+- Derive a 1.6MHz+ clock from 1MHz calibration data. The previous hardcoded
+  `RSEL=8`, `DCO=3`, `MOD=0` would result in too low a clock frequency for
+  handling interrupts on some MSP430G2211 samples.
+  - As a side effect, properly document how clocks are set up in `init`.
+
+### Changed
+- Switch from deprecated [msp430-atomic] to [portable-atomic].
+- Switch from deprecated [bare-metal](https://github.com/rust-embedded/bare-metal)
+  to a custom [fork](https://github.com/cr1901/msp430-cs/tree/msp430-cs) of the
+  repacement [critical-section] crate. Using the main repo is pending on
+  [rust-lang/rust/issues/102295](https://github.com/rust-lang/rust/issues/102295)
+  being fixed.
+
+  Before [bare-metal] was deprecated, AT2XT was updated to use [`v1.0.0`][bm-v1.0.0],
+  where `CriticalSection` is `Copy`/`Clone`. In [theory](https://github.com/rust-embedded/bare-metal/pull/20),
+  this should allow more optimizations because `CriticalSection` is a
+  Zero-Sized Type (ZST), but `&CriticalSection` is the size of a pointer.
+- Update [msp430], [msp430-rt], [msp430g2211], and [panic-msp430] crates to
+  `v0.3.0` ([bare-metal `v1.0.0`][bm-v1.0.0]), then `v0.4.0` ([critical-section]).
+  - AT2XT methods now consume `CriticalSection` tokens instead of passing them
+    by reference.
+  - `driver` module and `PortWrite` trait cleaned up to reflect newer
+    [msp430g2211] APIs.
+
+### Removed
+- Remove errant `unwrap` outside of `init`, `main`, and interrupts and replace
+  with `?`. This saves a few bytes, and also constrains all of AT2XT's
+  `unwrap`s to top-level functions within the root (`main.rs`) module.
+
 ## [4.1.0]
 Version [4.1.0] further improves the refactor of [4.0.0]. _All `unsafe` code
 has been removed as of this version!_ The binary still compiles to about ~2000
@@ -53,7 +104,7 @@ of purely safe code.
   is now used to build `libcore`.
 - Generate more build artifacts using `timer` and `timer-extra` `just` targets.
 - Until upstream support is added for the new `asm!` macro, use version `0.1.2`
-  of the [msp430_atomic] crate with the always-unstable `llvm_asm!` macro.
+  of the [msp430-atomic] crate with the always-unstable `llvm_asm!` macro.
 - The README.md and `Justfile` has been brought up to date in light of the
   other changes.
 
@@ -158,7 +209,7 @@ the old unsound `borrow`-based peripherals API and the newer `take`-based
 `take`-based API (_without RTFM for now_) warrants a major version bump.
 
 ### Changed
-- The [panic_msp430] crate now provides the `panic_handler` language item.
+- The [panic-msp430] crate now provides the `panic_handler` language item.
   We have removed our own implementation of the same.
 - `cargo` profile configuration options were simplified so that
   [default](https://doc.rust-lang.org/cargo/reference/manifest.html) values
@@ -246,7 +297,7 @@ and the previous, but was non-functional; now fixed. Fixes include:
 - The [msp430g2211] crate was published,
 so we use the [crates.io](https://crates.io/crates/msp430g2211) version now.
 - Change [bit_reverse] algorithm to `BitwiseReverse` to save approx 18-20 bytes.
-- Use the newly-created [msp430_atomic] repository for wait-free `AtomicBool`.
+- Use the newly-created [msp430-atomic] repository for wait-free `AtomicBool`.
 Removes a number of critical sections, thus saving approx 30 bytes.
 - Between [2.0.0] and [2.1.0], an [r0](https://github.com/japaric/r0)
 [optimization](https://github.com/japaric/r0/blob/master/CHANGELOG.md#v022---2017-07-21)
@@ -374,11 +425,10 @@ to remove warnings, mainly of the following types (and their fixes):
 ### Changed
 - Now that the firmware is known to work, I start importing already-existing
 crates to automate work I did manually.
-  - [bare_metal](https://github.com/japaric/bare-metal) crate provides a
-  generic `CriticalSection`, so replace `CriticalSectionToken` =>
-  `CriticalSection`.
+  - [bare-metal] crate provides a generic `CriticalSection`, so replace
+    `CriticalSectionToken` => `CriticalSection`.
   - [msp430] crate provides interrupt helpers, as well as `critical_section`,
-  so replace `critical_section` => `free`.
+    so replace `critical_section` => `free`.
   - Neither of the above changes add to code size- truly zero-cost.
 
 ### Removed
@@ -501,11 +551,16 @@ should not be manufactured. A new design will follow shortly.
 [msp430-rt]: https://github.com/rust-embedded/msp430-rt
 [msp430g2211]: https://github.com/cr1901/msp430g2211
 [msp430-rtfm]: https://github.com/japaric/msp430-rtfm
-[msp430_atomic]: https://github.com/pftbest/msp430-atomic
-[panic_msp430]: https://github.com/YuhanLiin/panic-msp430
+[msp430-atomic]: https://github.com/pftbest/msp430-atomic
+[panic-msp430]: https://github.com/YuhanLiin/panic-msp430
 [compiler-builtins]: https://github.com/rust-lang-nursery/compiler-builtins
+[portable-atomic]: https://github.com/taiki-e/portable-atomic
+[critical-section]: https://github.com/rust-embedded/critical-section
+[bare-metal]: https://github.com/rust-embedded/bare-metal
+[bm-v1.0.0]: https://github.com/rust-embedded/bare-metal/tree/v1.0.0
 
-[Unreleased]: https://github.com/cr1901/AT2XT/compare/v4.1.0...HEAD
+[Unreleased]: https://github.com/cr1901/AT2XT/compare/v4.2.0...HEAD
+[4.2.0]: https://github.com/cr1901/AT2XT/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/cr1901/AT2XT/compare/v4.0.0...v4.1.0
 [4.0.0]: https://github.com/cr1901/AT2XT/compare/v3.0.0...v4.0.0
 [3.0.0]: https://github.com/cr1901/AT2XT/compare/v2.3.0...v3.0.0
