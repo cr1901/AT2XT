@@ -36,6 +36,14 @@ default_features = false
 [dependencies.bitflags]
 version = "1.2.1"
 
+[dependencies.postcard-infomem-device]
+version = "0.1.0"
+git = "https://github.com/cr1901/postcard-infomem"
+
+[build-dependencies.postcard-infomem-host]
+version = "0.1.0"
+git = "https://github.com/cr1901/postcard-infomem"
+
 # Required for `cargo fix`.
 [[bin]]
 name = "at2xt"

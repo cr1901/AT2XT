@@ -11,6 +11,7 @@ use msp430::{critical_section as mspcs, interrupt::CriticalSection, interrupt::M
 use msp430_rt::entry;
 use msp430g2211::{interrupt, Peripherals};
 use portable_atomic::{AtomicBool, Ordering};
+use postcard_infomem_device::include_postcard_infomem;
 
 mod keyfsm;
 use keyfsm::{Cmd, Fsm, LedMask, ProcReply};
@@ -38,6 +39,8 @@ static DEVICE_ACK: AtomicBool = AtomicBool::new(false);
 static IN_BUFFER: Mutex<RefCell<KeycodeBuffer>> = Mutex::new(RefCell::new(KeycodeBuffer::new()));
 static KEY_IN: Mutex<Cell<KeyIn>> = Mutex::new(Cell::new(KeyIn::new()));
 static KEY_OUT: Mutex<Cell<KeyOut>> = Mutex::new(Cell::new(KeyOut::new()));
+
+include_postcard_infomem!(concat!(env!("OUT_DIR"), "/version.bin"));
 
 #[interrupt]
 fn TIMERA0(cs: CriticalSection) {
