@@ -24,7 +24,7 @@ macro_rules! from_impl_for_pins {
                 Pins::from_bits_truncate(r.bits())
             }
         }
-    }
+    };
 }
 
 from_impl_for_pins! { &p1in::R }
@@ -45,7 +45,7 @@ macro_rules! impl_port_write {
                 self.$f().bits(bits)
             }
         }
-    }
+    };
 }
 
 impl_port_write! { p1in::W, p1in }
@@ -59,7 +59,7 @@ fn set_port_reg<REG>(reg: &Reg<REG>, pins: Pins)
 where
     <REG as Writable>::Writer: PortWrite,
     REG: RegisterSpec + Readable + Writable,
-    Pins: for<'a> From<&'a <REG as Readable>::Reader>
+    Pins: for<'a> From<&'a <REG as Readable>::Reader>,
 {
     reg.modify(|r, w| {
         let p = Pins::from(r) | pins;

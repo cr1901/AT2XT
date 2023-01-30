@@ -8,9 +8,9 @@ extern crate panic_msp430;
 use bit_reverse::BitwiseReverse;
 use core::cell::{Cell, RefCell};
 use msp430::{critical_section as mspcs, interrupt::CriticalSection, interrupt::Mutex};
-use portable_atomic::{AtomicBool, Ordering};
 use msp430_rt::entry;
 use msp430g2211::{interrupt, Peripherals};
+use portable_atomic::{AtomicBool, Ordering};
 
 mod keyfsm;
 use keyfsm::{Cmd, Fsm, LedMask, ProcReply};
@@ -121,15 +121,31 @@ fn init(cs: CriticalSection) {
 
     driver::idle(&p.PORT_1_2);
 
+    let calcb1 = p.CALIBRATION_DATA.calbc1_1mhz.read().calbc1_1mhz().bits();
+    let caldco = p.CALIBRATION_DATA.calbc1_1mhz.read().calbc1_1mhz().bits();
+
+    // We want a nominally 1.6MHz clock (to get an easily-divisible timer of
+    // 100kHz). Higher frequencies are fine, but even a bit lower than 1.6MHz
+    // runs into timing problems servicing interrupts IME. 1.35^2*1.08 is
+    // closer to 1.70MHz; this is some breathing room because the 1MHz
+    // calibration value can vary up to 3% according to the MSP430G2211
+    // datasheet.
     p.SYSTEM_CLOCK
         .bcsctl1
-        .write(|w| w.xt2off().set_bit().rsel().bits(8)); // XT2 off, Range Select 7.
-    p.SYSTEM_CLOCK.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4.
+        .write(|w| w.bcsctl1().bits(calcb1 + 2)); // XT2 off, Multiply freq by 1.35^2
+    p.SYSTEM_CLOCK.dcoctl.write(|w| {
+        w.dcoctl().bits(if caldco >= 32 {
+            caldco - 32 // Divide by 1.08 if DCO bits nonzero.
+        } else {
+            caldco // Otherwise leave alone.
+        })
+    });
+    p.SYSTEM_CLOCK.bcsctl2.write(|w| w.divs().divs_2()); // Divide submain clock by 4, nominally 400kHz.
 
     p.TIMER_A2.taccr0.write(|w| w.taccr0().bits(0x0000));
     p.TIMER_A2
         .tactl
-        .write(|w| w.tassel().tassel_2().id().id_2().mc().mc_1());
+        .write(|w| w.tassel().tassel_2().id().id_2().mc().mc_1()); // Divide by 4, use submain clock (100kHz).
     p.TIMER_A2.tacctl0.write(|w| w.ccie().set_bit());
 
     let shared = At2XtPeripherals {
@@ -198,14 +214,12 @@ fn main() -> ! {
                 }
 
                 loop {
-                    if let Some(b_in) = attempt_take()
-                    {
+                    if let Some(b_in) = attempt_take() {
                         let mut bits_in = b_in;
                         bits_in &= !(0x4000 + 0x0001); // Mask out start/stop bit.
                         bits_in >>= 2; // Remove stop bit and parity bit (FIXME: Check parity).
                         break ProcReply::GrabbedKey((bits_in as u8).swap_bits());
                     }
-                    
                     // If host computer wants to reset
                     if reset_requested() {
                         send_byte_to_at_keyboard(Cmd::RESET).unwrap();
