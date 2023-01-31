@@ -16,7 +16,7 @@ but older pre-386 systems may not know how to handle extended keys. The
 extended keycodes are based on a [document](https://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/scancode.doc)
 from Microsoft that includes XT keycodes for compatibility.
 
-## Rust Source
+## Building The Firmware (Rust Source)
 As an experiment to test the MSP430 Rust/LLVM backend, the current source has
 been rewritten in Rust. All future development will be in Rust. The rewrite
 is not _exactly_ semantically equivalent to the C source code; in particular,
@@ -27,36 +27,49 @@ FSM _is_ the main loop, and I/O processing is embedded.
 ### Prerequisites
 This source requires the Rust nightly compiler for the foreseeable future due
 to the use of `abi_msp430_interrupt` [feature](https://doc.rust-lang.org/unstable-book/language-features/abi-msp430-interrupt.html).
-To obtain the nightly compiler and relevant dependencies:
 
-1. Visit the rustup [website](www.rustup.rs) and follow the instructions to
-first get a stable compiler. _I have only tested the GNU ABI version of Rust
-on Windows_, but choose which version makes sense for you.
+1. Make sure `git` (for AT2XT), `curl` (for `rustup`), `gcc` (for [proc macros](https://doc.rust-lang.org/reference/procedural-macros.html)),
+   and optionally `wget` (for downloading `msp430-elf-gcc`) and `just` (for
+   convenience) are installed.
 
-2. `rustup` should now be on your path. Obtain the nightly compiler with:
-`rustup install nightly`. As of before July 16, 2017, MSP430 support is
-enabled in Rust nightly. Switch to the nightly compiler by running:
-`rustup default nightly`. Alternatively, if you only want to use the nightly
-compiler for this project, you can run `rustup override set --path /path/to/AT2XT/root nightly`.
-This tells `rustup` to use the nightly compiler by default when compiling the
-AT2XT crate.
+2. Visit the rustup [website](https://www.rustup.rs) and follow the
+   instructions to first get `rustc` plus `cargo`.
 
-3. Obtain `msp430-elf-gcc` from TI at the bottom of
-[this page](http://www.ti.com/tool/msp430-gcc-opensource), and make sure the
-toolchain's bin directory is visible to Rust. Until LLVM gets linker support
-for msp430, binutils is required for the linker.
+3. Obtain `msp430-elf-gcc` from TI at the bottom of [this page](http://www.ti.com/tool/msp430-gcc-opensource),
+   and make sure the toolchain's bin directory is visible to Rust. Until LLVM
+   gets linker support for msp430, binutils is required for the linker.
 
-### Building
-MSP430 needs a `libcore` installed that doesn't conflict w/ your host. The
-_unstable_ `cargo` feature `-Zbuild-std=core` allows a developer to maintain
-multiple `libcores` for multiple archs simultaneously.
+### Build Command
+_As of this writing (1-31-2023), AT2XT can be built using the standard
+`cargo build --release`._
 
-The current command to build is:
-`cargo build --release -Zbuild-std=core --target=msp430-none-elf`. This command
-has changed over time, so I provide a [Justfile](https://github.com/casey/just)
-as well. Run `just --list` for a list of avilable recipes. The build can be
-further customized by setting the following variables on the `just` command
-line (e.g. `just MODE=release`):
+#### `.cargo/config` and `rust-toolchain.toml`
+Thanks to the [`.cargo/config`](.cargo/config) and [`rust-toolchain.toml`](rust-toolchain.toml)
+files, the nightly compiler and source will be downloaded, and `cargo` will
+automatically target the built-in `msp430-none-elf` target.
+
+Additionally, MSP430 needs a `libcore` installed that doesn't conflict w/ your host,
+and an MSP430 `libcore` is not currently provided as part of the toolchain. The
+_unstable_ `cargo` feature `-Zbuild-std=core` allows a developer to build
+a `libcore` as part of building your application; `.cargo/config` also takes
+care of this step. 
+
+For completeness' sake, the full command to build AT2XT (using `rustup` as a
+toolchain manager) is:
+
+```
+cargo +nightly build --release -Zbuild-std=core --target=msp430-none-elf
+```
+
+#### Justfile
+Historically, the build command has changed over time, so I provided a
+[Justfile](https://github.com/casey/just) to build AT2XT as well. The Justfile
+has mostly been superceded by the above files, and at this point consists of
+personal recipes I use for development and CI.
+
+For those interested, run `just --list` for a list of avilable recipes. The
+build can be further customized by setting the following variables on the
+`just` command line (e.g. `just MODE=release`):
 
 * `MODE`: `release` or `debug`. Defaults to `release`, which _must_ be paired
   with the `--release` option to `cargo`.
