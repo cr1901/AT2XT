@@ -1,0 +1,5 @@
+# https://github.com/github/linguist/blob/master/docs/overrides.md
+# Old code of mine
+legacy-src/* linguist-vendored
+# Chuck Guzis' code
+legacy-src/XTATKEY linguist-vendored
