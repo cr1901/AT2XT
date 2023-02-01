@@ -16,6 +16,15 @@ but older pre-386 systems may not know how to handle extended keys. The
 extended keycodes are based on a [document](https://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/scancode.doc)
 from Microsoft that includes XT keycodes for compatibility.
 
+## Schematics And PCB
+Kicad Schematics are provided the [`board`](board) directory. Gerber Files and
+an N/C Drill File are provided in the [`gerber`](gerber) directory. A BOM is
+provided in [`at2xtv200_BOM.csv`](at2xtv200_BOM.csv).
+
+You can get boards made using my shared [OSHPark Project](https://oshpark.com/shared_projects/AXSJvSh9),
+and parts using my shared (_to the extent I could figure out how to share it_)
+[Mouser Project](https://www.mouser.com/ProjectManager/ProjectDetail.aspx?AccessID=fe2f22f0a4).
+
 ## Building The Firmware (Rust Source)
 As an experiment to test the MSP430 Rust/LLVM backend, the current source has
 been rewritten in Rust. All future development will be in Rust. The rewrite
@@ -23,6 +32,14 @@ is not _exactly_ semantically equivalent to the C source code; in particular,
 in the Rust version, the keyhandling Finite State Machine (FSM) returns
 immediately and I/O processing occurs in the main loop. In the C version the
 FSM _is_ the main loop, and I/O processing is embedded.
+
+### Minimum Supported Rust Version
+In theory, the Minimum Supported Rust Version is "the most recently nightly
+available from `rustup` that doesn't break CI". When CI breaks, I notice within
+a few days (and I've been meaning to set up a GHA to tell me when it breaks).
+
+In practice, I run `rustup update` every 6 weeks during the Thursday release,
+and have not run into problems using a 6 week old `nightly` compiler for AT2XT.
 
 ### Prerequisites
 This source requires the Rust nightly compiler for the foreseeable future due
@@ -45,8 +62,8 @@ _As of this writing (1-31-2023), AT2XT can be built using the standard
 
 #### `.cargo/config` and `rust-toolchain.toml`
 Thanks to the [`.cargo/config`](.cargo/config) and [`rust-toolchain.toml`](rust-toolchain.toml)
-files, the nightly compiler and source will be downloaded, and `cargo` will
-automatically target the built-in `msp430-none-elf` target.
+files, the nightly compiler and compiler source will be downloaded, and
+`cargo` will automatically target the built-in `msp430-none-elf` target.
 
 Additionally, MSP430 needs a `libcore` installed that doesn't conflict w/ your host,
 and an MSP430 `libcore` is not currently provided as part of the toolchain. The
@@ -78,50 +95,52 @@ build can be further customized by setting the following variables on the
   unconditionally required, but `--release` should be unset if doing a `debug`
   build.
 
-### Dependencies Caveats
-#### Compiler/Dependency Mismatches
-As Rust the language evolves, certain features in `nightly` may be enabled
-which break old commits that once compiled. For example, a
-[ThinLTO bug](https://github.com/japaric/xargo/issues/158) in `rustc` ensured
-compilation for targets using an external assembler- including MSP430-
-was broken in `nightly` from August until January!
+## Historical Context And Legacy Source
+### Building Older Versions Of The Rust Firmware
+When this firmware was first rewritten in Rust in 2017, `nightly` features,
+nightly (literally!) code additions, and dependencies were subject to breaking
+changes much more frequently than today (1-31-2023). While I was still getting
+comfortable with Rust, I did not set up CI to figure out which `nightlies` or
+dependency changes broke the build. 
 
-I can give approximate ranges for which `nightlies` work with which range of
-commits, but because the functionality of the `nightly` I make no guarantees
-that previous commits will compile; using the correct compiler
-[may not solve](https://github.com/cr1901/msp430-rtfm/commit/f6163b7acaeb135e08af1491daded54057e0d59f)
-all dependency version mismatches in libraries whose public APIs are in flux
+In retrospect, this was a mistake; sometimes the build broke for several
+months, such as with this [ThinLTO bug](https://github.com/japaric/xargo/issues/158).
+Additionally, I tracked branches rather than refs/tags in [git dependencies](https://github.com/cr1901/msp430-rtfm/commit/f6163b7acaeb135e08af1491daded54057e0d59f), so sometimes even having a working
+`nightly` would mean the build would break. In 2023, it's difficult for me to
+give ranges of working `nightlies` for old versions of AT2XT.
 
-_That said_, it was my intent when porting the code to Rust that tagged
-commits should be able to serve as an example of how to write bare-metal Rust
-applications using a variety of different code structures and varying number of
-external dependencies (see CHANGELOG.md). Previous versions should still be
-able to compile/function with a small to moderate amount of work
-(see "data layout" in Tags/Comparing Versions for an example).
+_That said_, it was my intent when porting the code to Rust that tagged commits
+should be able to serve as an example of how to write
+bare-metal Rust applications using a variety of different code structures and
+varying number of external dependencies (see CHANGELOG.md). It should be
+possible with moderate effort to port old tags of AT2XT to modern `nightlies`,
+though I have no plans to do this. Additionally, with a proper `nightly` compiler installed, previous
+versions should still be able to compile/function with a small to moderate
+amount of work (see [Data Layout](#data-layout)). Maybe I'll try a [bisect](https://github.com/rust-lang/cargo-bisect-rustc)
+in the future for fun and populate a table of working nightlies for tags :D.
 
-#### RTFM
-AT2XT at present does not use [RTFM framework](http://www.rtfm-lang.org).
-This will likely be a version `4.x` milestone. `3.x` is dedicated to testing
-the `take`-based `Peripherals` [API](https://blog.japaric.io/brave-new-io/).
+#### RTIC/RTFM
+Long ago, AT2XT was implemented using the a proof-of-concept version of the [RTIC framework](https://rtic.rs/1/book/en/)
+for MSP430 (back when it was known as the RTFM framework). This support
+disappeared in `v3.0.0` of the firmware while removing [API unsoundness](https://blog.japaric.io/brave-new-io/)
+elsewhere. I looked into porting doing a more proper port of RTIC in late 2019,
+but never followed through. At present (1-31-2023), it is not in my plans to
+reintroduce RTIC to AT2XT.
 
-### Tags/Comparing Versions
-Tags to previous versions are included to compare the overhead of adding
-various abstractions and making the source code look more like an idiomatic
-hosted Rust program. Some considerations when comparing versions:
-
-* The MSP430 data layout changed between the time I started writing this
+#### Data Layout
+The MSP430 data layout changed between the time I started writing this
 firmware (June 12, 2017) and as of this writing (July 16, 2017). Recent
 nightly compilers will crash with custom provided layout up until commit
 c85088c. The data layout in `msp430.json` before this commit should be:
 `e-m:e-p:16:16-i32:16-i64:16-f32:16-f64:16-a:8-n8:16-S16`.
 
-* MSP430 became a supported target within Rust nightly in July 2017, and the
+MSP430 became a supported target within Rust nightly in July 2017, and the
 target "triple" changed from `msp430` to `msp430-none-elf`. I switched to the
 internal target as of commit c0dc9b9, but the immediate commit prior c85088c
 shows how to generate an equivalent binary with the originally-used custom
 target.
 
-## Legacy Source
+### Original AT2XT C Source
 For comparison purposes, I have kept the old C-based source code as well under
 the `legacy-src` directory.
 
@@ -153,9 +172,3 @@ I have provided the [source](http://www.vcfed.org/forum/showthread.php?15907-AT-
 and [schematics](http://www.vcfed.org/forum/showthread.php?15907-AT-to-XT-Keyboard-Converter&p=106341#post106341)
 to his version- _with permission_- under the `legacy-src/XTATKEY` directory.
 See linked forum posts for details.
-
-## Schematics
-Schematics are provided in DIPTrace ASCII format. PCB is provided using Gerber
-Files and an N/C Drill File.
-
-It is my intention sometime soon to redo the schematic using KiCAD.
