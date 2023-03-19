@@ -10,10 +10,10 @@ version = "1.1.0"
 branch = "msp430-cs"
 
 [dependencies.msp430]
-version = "0.4.0"
+version = "0.4.1"
 
 [dependencies.bit_reverse]
-version = "0.1.7"
+version = "0.1.8"
 default_features = false
 
 [dependencies.msp430-rt]
@@ -24,17 +24,17 @@ version = "0.4.0"
 features = ["critical-section", "rt"]
 
 [dependencies.portable-atomic]
-version = "0.3.13"
+version = "1.1.0"
 
 [dependencies.panic-msp430]
 version = "0.4.0"
 
 [dependencies.once_cell]
-version = "1.7.0"
+version = "1.17.1"
 default_features = false
 
 [dependencies.bitflags]
-version = "1.2.1"
+version = "2.0.1"
 
 # Required for `cargo fix`.
 [[bin]]

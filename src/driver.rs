@@ -3,6 +3,7 @@ use msp430g2211::generic::{Readable, Reg, RegisterSpec, Writable};
 use msp430g2211::port_1_2::*;
 
 bitflags! {
+    #[derive(Clone, Copy)]
     pub struct Pins: u8 {
         const AT_CLK = 0b0000_0001;
         const AT_DATA = 0b0001_0000;
@@ -12,8 +13,8 @@ bitflags! {
         const UNUSED_5 = 0b0010_0000;
         const UNUSED_6 = 0b0100_0000;
         const UNUSED_7 = 0b1000_0000;
-        const AT_MASK = Self::AT_CLK.bits | Self::AT_DATA.bits;
-        const XT_MASK = Self::XT_CLK.bits | Self::XT_DATA.bits;
+        const AT_MASK = Self::AT_CLK.bits() | Self::AT_DATA.bits();
+        const XT_MASK = Self::XT_CLK.bits() | Self::XT_DATA.bits();
     }
 }
 
@@ -21,7 +22,7 @@ macro_rules! from_impl_for_pins {
     ($t:ty) => {
         impl From<$t> for Pins {
             fn from(r: $t) -> Self {
-                Pins::from_bits_truncate(r.bits())
+                Pins::from_bits_retain(r.bits())
             }
         }
     };
