@@ -5,5 +5,5 @@
     "schedule:monthly",
     "group:all",
     ":approveMajorUpdates"
-  ],
+  ]
 }
