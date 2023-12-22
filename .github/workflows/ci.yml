@@ -19,11 +19,9 @@ jobs:
     steps:
       # Rust Setup
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
           components: rust-src
       - uses: extractions/setup-just@v1
         env:
