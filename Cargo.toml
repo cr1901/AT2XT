@@ -24,17 +24,17 @@ version = "0.4.0"
 features = ["critical-section", "rt"]
 
 [dependencies.portable-atomic]
-version = "1.1.0"
+version = "1.6.0"
 
 [dependencies.panic-msp430]
 version = "0.4.0"
 
 [dependencies.once_cell]
-version = "1.17.1"
+version = "1.19.0"
 default_features = false
 
 [dependencies.bitflags]
-version = "2.0.1"
+version = "2.4.1"
 
 # Required for `cargo fix`.
 [[bin]]
