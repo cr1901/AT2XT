@@ -3,6 +3,6 @@
   "extends": [
     "config:recommended",
     "schedule:monthly",
-    "group:allNonMajor"
+    "group:all"
   ]
 }
