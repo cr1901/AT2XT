@@ -1,5 +1,7 @@
 on:
   push:
+    branches-ignore:
+      - renovate/*
   pull_request:
   schedule:
     # Run every night to track nightly.
